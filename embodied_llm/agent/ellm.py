@@ -175,13 +175,14 @@ class EmbodiedLLM:
 def main(args):
     from pathlib import Path
     microphone = args.microphone
+    camera = args.carmera
     max_iterations = args.max_iterations
     pipeline = args.pipeline
     models_folder = args.models_folder
     if models_folder is None:
         models_folder = Path.home() / "ellm"
 
-    ellm = EmbodiedLLM(input_device=microphone, models_folder=models_folder, pipeline=pipeline)
+    ellm = EmbodiedLLM(input_device=microphone, models_folder=models_folder, pipeline=pipeline, camera_device=camera)
     ellm.loop(max_iterations=max_iterations)
     ellm.stop()
 
@@ -189,6 +190,7 @@ def main(args):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--microphone', type=int, default=-1, help='microphone index')
+    parser.add_argument('--camera', type=int, default=-1, help='camera index')
     parser.add_argument('--max-iterations', type=int, default=-1, help='microphone index')
     parser.add_argument('--models-folder', type=str, default=None, help='path of the folder where models should be stored')
     parser.add_argument('--pipeline', type=str, default="llamacpp", help='one of: huggingface, llamacpp')
