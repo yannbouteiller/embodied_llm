@@ -175,7 +175,7 @@ class EmbodiedLLM:
 def main(args):
     from pathlib import Path
     microphone = args.microphone
-    camera = args.carmera
+    camera = args.camera
     max_iterations = args.max_iterations
     pipeline = args.pipeline
     models_folder = args.models_folder
