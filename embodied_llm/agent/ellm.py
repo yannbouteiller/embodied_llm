@@ -27,9 +27,11 @@ class EmbodiedLLM:
                                             spinner=False)
 
         if pipeline == "huggingface":
+            print(f"DEBUG: using hugging face pipeline")
             from embodied_llm.llm.hugging_face import ImageLLMHuggingFace
             self.llm = ImageLLMHuggingFace(camera_device=camera_device, models_folder=models_folder)
         elif pipeline == "llamacpp":
+            print(f"DEBUG: using llama cpp pipeline")
             from embodied_llm.llm.llama_cpp import ImageLLMLlamaCPP
             self.llm = ImageLLMLlamaCPP(camera_device=camera_device, models_folder=models_folder)
         else:
@@ -127,10 +129,9 @@ class EmbodiedLLM:
                     res = f"OK, I will look for {self.searched_str}."
                     mode = "search"
                     self.listen()
-                elif self.pipline == "huggingface":
-                    res = self.llm.capture_image_and_prompt(text)
                 else:
-                    res = self.llm.simple_prompt(text)
+                    res = self.llm.capture_image_and_prompt(text)
+                    # res = self.llm.simple_prompt(text)
                 print(f"Laika: {res}")
                 self.tts.feed(res).play()
             elif mode == "search":
@@ -175,11 +176,12 @@ def main(args):
     from pathlib import Path
     microphone = args.microphone
     max_iterations = args.max_iterations
+    pipeline = args.pipeline
     models_folder = args.models_folder
     if models_folder is None:
         models_folder = Path.home() / "ellm"
 
-    ellm = EmbodiedLLM(input_device=microphone, models_folder=models_folder)
+    ellm = EmbodiedLLM(input_device=microphone, models_folder=models_folder, pipeline=pipeline)
     ellm.loop(max_iterations=max_iterations)
     ellm.stop()
 
@@ -189,7 +191,7 @@ if __name__ == "__main__":
     parser.add_argument('--microphone', type=int, default=-1, help='microphone index')
     parser.add_argument('--max-iterations', type=int, default=-1, help='microphone index')
     parser.add_argument('--models-folder', type=str, default=None, help='path of the folder where models should be stored')
-    parser.add_argument('--pipeline', type=str, default="huggingface", help='one of: huggingface, llamacpp')
+    parser.add_argument('--pipeline', type=str, default="llamacpp", help='one of: huggingface, llamacpp')
     arguments = parser.parse_args()
 
     main(arguments)
