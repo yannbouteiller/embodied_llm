@@ -151,10 +151,6 @@ class EmbodiedLLM:
         with self._lock:
             self._text_buffer = []
 
-    def publish_msg(self, msg):
-        b_string = struct.pack('H', self.robot_id)
-        pass
-
     def loop(self, max_iterations=-1):
         """
         Main loop.
@@ -182,7 +178,7 @@ class EmbodiedLLM:
                 if trigger == 1:
                     # User said "Bye"
                     self.tts.feed("Goodbye.").play()
-                    self.publish_msg(TRIGGER_MSGS['Turnoff_cmd'])
+                    self.publish_zenoh_msg(TRIGGER_MSGS['Turnoff_cmd'])
                     break
                 elif trigger == 2:
                     # User asked to memorize what the camera currently sees
@@ -202,13 +198,13 @@ class EmbodiedLLM:
                     res = f"OK, I will look for {self.searched_str}."
                     mode = "search"
                     self.listen()
-                    self.publish_msg(TRIGGER_MSGS['Find_object_cmd'])
+                    self.publish_zenoh_msg(TRIGGER_MSGS['Find_object_cmd'])
                 elif trigger == 5:
                     # User asked to sit down
-                    self.publish_msg(TRIGGER_MSGS['Sit_cmd'])
+                    self.publish_zenoh_msg(TRIGGER_MSGS['Sit_cmd'])
                 elif trigger == 6:
                     # User asked to stand up
-                    self.publish_msg(TRIGGER_MSGS['Stand_cmd'])
+                    self.publish_zenoh_msg(TRIGGER_MSGS['Stand_cmd'])
                 else:
                     res = self.llm.capture_image_and_prompt(text)
                     # res = self.llm.simple_prompt(text)

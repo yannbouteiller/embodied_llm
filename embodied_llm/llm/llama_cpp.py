@@ -85,8 +85,8 @@ class ImageLLMLlamaCPP(ImageLLM):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                        {f"type": "text", "text": f"(CONTEXT: imagine you are seeing the image, but DO NOT describe it) {text}"}
+                        # {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                        {f"type": "text", "text": f"{text}"}
                     ]
                 }
             ]
