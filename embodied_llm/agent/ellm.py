@@ -202,7 +202,7 @@ class EmbodiedLLM:
                     res = f"OK, I will look for {self.searched_str}."
                     mode = "search"
                     self.listen()
-                    self.publish_zenoh_msg(TRIGGER_MSGS['Find_object_cmd'])
+                    self.publish_zenoh_msg(TRIGGER_MSGS['Explore_cmd'])
                 elif trigger == 5:
                     # User asked to sit down
                     self.publish_zenoh_msg(TRIGGER_MSGS['Sit_cmd'])
@@ -244,6 +244,7 @@ class EmbodiedLLM:
                     self.tts.feed(res).play()
                     self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
                     mode = "chat"
+                    self.publish_zenoh_msg(TRIGGER_MSGS['Home_cmd'])
                 else:
                     stop = False
                     with self._lock:
