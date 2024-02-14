@@ -1,13 +1,28 @@
 from argparse import ArgumentParser
 from threading import Lock, Thread
+import struct
+import re
 
 from RealtimeTTS import TextToAudioStream
 from RealtimeSTT import AudioToTextRecorder
+import zenoh
 
 from embodied_llm.asr.real_time_tts import PiperEngine
 
-import re
-import time
+
+TRIGGER_MSGS = {
+    'No_cmd': 0,
+    'Turnoff_cmd': 21,
+    'Explore_cmd': 1,
+    'Home_cmd': 2,
+    'Wp_cmd': 3,
+    'Find_object_cmd': 4,
+    'Sit_cmd': 5,
+    'Stand_cmd': 6,
+    'Dance_cmd': 7,
+    'all_robots_explore_cmd': 8,
+    'all_robots_home_cmd': 9,
+}
 
 
 class EmbodiedLLM:
@@ -16,8 +31,11 @@ class EmbodiedLLM:
                  camera_device=0,
                  models_folder=None,
                  pipeline="huggingface",
-                 names=("rebecca", "rebeca", "rebbeca", "rebbecca")):
+                 names=("rebecca", "rebeca", "rebbeca", "rebbecca"),
+                 zenoh_topic="mist/ellm",
+                 zenoh_id=1):
 
+        self.int_id = zenoh_id
         self.pipline = pipeline
         self.names = names
 
@@ -46,9 +64,30 @@ class EmbodiedLLM:
         self.tts_engine = PiperEngine(models_folder=models_folder)
         self.tts = TextToAudioStream(self.tts_engine, log_characters=False)
 
+        self.zenoh_session = zenoh.open()
+        self.zenoh_pub = self.zenoh_session.declare_publisher(zenoh_topic)
+        self.zenoh_sub = self.zenoh_session.declare_subscriber(zenoh_topic, self.receive_zenoh_msg)
+
         self.tts.feed("I'm ready.").play()
 
+    def receive_zenoh_msg(self, msg):
+        pass
+
+    def publish_zenoh_msg(self, int_msg):
+        b_string = struct.pack('H', self.int_id)
+        b_string += struct.pack('H', int_msg)
+        data = zenoh.Value(b_string)
+        self.zenoh_pub.put(data)
+
     def triggers(self, text):
+        """
+        Trigger detection.
+
+        Modify this method to implement new triggers, then handle them in the loop method.
+
+        :param text: str: incoming speech transcribed to text
+        :return: int: trigger
+        """
 
         name_detected = False
         for name in self.names:
@@ -67,10 +106,19 @@ class EmbodiedLLM:
             trigger = 3
         elif "look for" in text.lower() or "search" in text.lower():
             trigger = 4
+        elif "sit down" in text.lower():
+            trigger = 5
+        elif "stand up" in text.lower():
+            trigger = 6
 
         return trigger, name_detected
 
     def listen(self):
+        """
+        When this method is called, the LLM starts listening in a background thread.
+
+        (Useful for stopping the search mode asynchronously)
+        """
         self.t_listen = Thread(target=self._t_listen, args=(), daemon=True)
         self.t_listen.start()
 
@@ -88,6 +136,11 @@ class EmbodiedLLM:
                     cc = False
 
     def stop_listening(self):
+        """
+        Stops the listening thread
+
+        (CAUTION: must be called before going back to synchronous mode)
+        """
         with self._lock:
             self._listening = False
         if not self.recorder.is_recording:
@@ -98,27 +151,47 @@ class EmbodiedLLM:
         with self._lock:
             self._text_buffer = []
 
+    def publish_msg(self, msg):
+        b_string = struct.pack('H', self.robot_id)
+        pass
+
     def loop(self, max_iterations=-1):
+        """
+        Main loop.
+
+        Triggers and different modes are handled here.
+
+        :param max_iterations: int: number of maximum iterations of the loop. -1 for infinite.
+        """
         iteration = 0
         mode = "chat"
         while max_iterations < 0 or iteration <= max_iterations:
             if mode == "chat":
+
                 text = self.recorder.text()
-                print(f"Speech: {text}")
+                print(f"User: {text}")
+
                 trigger, name_detected = self.triggers(text)
                 print(f"DEBUG: name detected: {name_detected}, trigger: {trigger}")
+                if not name_detected:
+                    continue
 
                 if self.pipline == "huggingface":
                     self.llm.reset_chat()
 
                 if trigger == 1:
+                    # User said "Bye"
                     self.tts.feed("Goodbye.").play()
+                    self.publish_msg(TRIGGER_MSGS['Turnoff_cmd'])
                     break
                 elif trigger == 2:
+                    # User asked to memorize what the camera currently sees
                     res = self.llm.capture_image_and_memorize()
                 elif trigger == 3:
+                    # User asked to compare current image with memorized image
                     res = self.llm.capture_image_and_compared_with_memorized(text)
                 elif trigger == 4:
+                    # User asked to look for something
                     low = text.lower()
                     idx = low.rindex("look for") + 8
                     while idx < len(low) and not low[idx].isalpha():
@@ -129,9 +202,17 @@ class EmbodiedLLM:
                     res = f"OK, I will look for {self.searched_str}."
                     mode = "search"
                     self.listen()
+                    self.publish_msg(TRIGGER_MSGS['Find_object_cmd'])
+                elif trigger == 5:
+                    # User asked to sit down
+                    self.publish_msg(TRIGGER_MSGS['Sit_cmd'])
+                elif trigger == 6:
+                    # User asked to stand up
+                    self.publish_msg(TRIGGER_MSGS['Stand_cmd'])
                 else:
                     res = self.llm.capture_image_and_prompt(text)
                     # res = self.llm.simple_prompt(text)
+
                 print(f"Laika: {res}")
                 self.tts.feed(res).play()
             elif mode == "search":
@@ -170,6 +251,8 @@ class EmbodiedLLM:
         self.recorder.stop()
         self.recorder.shutdown()
         self.tts.stop()
+        self.zenoh_sub.undeclare()
+        self.zenoh_session.close()
 
 
 def main(args):

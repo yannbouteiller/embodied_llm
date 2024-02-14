@@ -1,16 +1,12 @@
 import signal
 from pathlib import Path
-import subprocess
-import time
 import base64
 
 import cv2
 from PIL import Image
-
 from matplotlib import pyplot as plt
 
 from embodied_llm.llm.image_llm import ImageLLM
-from openai import OpenAI
 
 
 def display(img):
@@ -29,6 +25,9 @@ class ImageLLMLlamaCPP(ImageLLM):
                  main_gpu=0,
                  n_gpu_layers=-1
                  ):
+
+        from llama_cpp import Llama
+        from llama_cpp.llama_chat_format import Llava15ChatHandler
 
         models_folder = Path(models_folder)
 
@@ -50,8 +49,6 @@ class ImageLLMLlamaCPP(ImageLLM):
         if not path_model.exists():
             raise FileNotFoundError(path_model)
 
-        from llama_cpp import Llama
-        from llama_cpp.llama_chat_format import Llava15ChatHandler
         chat_handler = Llava15ChatHandler(clip_model_path=str(path_clip))
 
         self.llama = Llama(
