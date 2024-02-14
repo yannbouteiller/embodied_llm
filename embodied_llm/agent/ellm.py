@@ -110,6 +110,10 @@ class EmbodiedLLM:
             trigger = 5
         elif "stand up" in text.lower():
             trigger = 6
+        elif "describe" in text.lower() or self.pipline == "huggingface" or self.pipline == "llamacpp":
+            trigger = 7
+        elif "reset chat" in text.lower():
+            trigger = 8
 
         return trigger, name_detected
 
@@ -169,10 +173,10 @@ class EmbodiedLLM:
 
                 trigger, name_detected = self.triggers(text)
                 print(f"DEBUG: name detected: {name_detected}, trigger: {trigger}")
-                if not name_detected:
-                    continue
+                # if not name_detected:
+                #     continue
 
-                if self.pipline == "huggingface":
+                if self.pipline == "huggingface" or self.pipline == "llamacpp":
                     self.llm.reset_chat()
 
                 if trigger == 1:
@@ -202,12 +206,20 @@ class EmbodiedLLM:
                 elif trigger == 5:
                     # User asked to sit down
                     self.publish_zenoh_msg(TRIGGER_MSGS['Sit_cmd'])
+                    res = "OK."
                 elif trigger == 6:
                     # User asked to stand up
                     self.publish_zenoh_msg(TRIGGER_MSGS['Stand_cmd'])
-                else:
+                    res = "OK."
+                elif trigger == 7:
+                    # User asked to describe
                     res = self.llm.capture_image_and_prompt(text)
-                    # res = self.llm.simple_prompt(text)
+                elif trigger == 8:
+                    # User asked to reset chat
+                    self.llm.reset_chat()
+                    res = "I forgot the chat history."
+                else:
+                    res = self.llm.simple_prompt(text)
 
                 print(f"Laika: {res}")
                 self.tts.feed(res).play()
@@ -215,9 +227,13 @@ class EmbodiedLLM:
                 self.llm.reset_chat()
                 text = f"Do you see {self.searched_str}?"
                 res = self.llm.capture_image_and_prompt(text)
+
+                while len(res) > 0 and not res[0].isalpha():
+                    res = res[1:]
+
                 if res.lower().startswith("yes"):
                     # TODO: Found object, trigger action here
-                    print(f"DEBUG: {res}")
+                    print(f"DEBUG YES: {res}")
                     idx = 3
                     while idx < len(res) and not res[idx].isalpha():
                         idx += 1
@@ -240,7 +256,7 @@ class EmbodiedLLM:
                         self.tts.feed(res).play()
                         self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
                         mode = "chat"
-                    print(f"DEBUG: {res}")
+                    print(f"DEBUG NO: {res}")
             iteration += 1
 
     def stop(self):

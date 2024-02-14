@@ -35,7 +35,6 @@ class ImageLLMLlamaCPP(ImageLLM):
         self.clip_name = clip_name
         self.models_folder = models_folder
         self.camera_device = camera_device
-        self.images_hist = []
         self.prompt = ""
         self.cam = cv2.VideoCapture(camera_device)
         self.cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -43,6 +42,10 @@ class ImageLLMLlamaCPP(ImageLLM):
         mp = Path(self.models_folder)
         path_clip = mp / self.clip_name
         path_model = mp / self.model_name
+
+        self.messages = None
+        self.max_history = 5
+        self.reset_chat()
 
         if not path_clip.exists():
             raise FileNotFoundError(path_clip)
@@ -61,10 +64,20 @@ class ImageLLMLlamaCPP(ImageLLM):
         )
 
     def stop(self):
-        self.p.send_signal(signal.SIGINT)
+        pass
 
     def reset_chat(self):
-        pass
+        self.messages = [{"role": "system", "content": f"You are an helful assistant."}]
+
+    def clip_history(self):
+        if len(self.messages) > self.max_history + 1:
+            context = self.messages[0]
+            hist = self.messages[:self.max_history]
+            self.messages = [context] + hist
+
+    def add_message(self, message):
+        self.messages.append(message)
+        self.clip_history()
 
     def capture_image_and_prompt(self, text):
 
@@ -72,60 +85,50 @@ class ImageLLMLlamaCPP(ImageLLM):
         ret, shot = self.cam.read()
         if ret and shot is not None:
             # display(shot)
-            base64_image = base64.b64encode(cv2.imencode('.jpg', shot)[1]).decode('utf-8')
-            color_converted = cv2.cvtColor(shot, cv2.COLOR_BGR2RGB)
-            pil_image = Image.fromarray(color_converted)
-            self.images_hist.append(pil_image)
+            base64_image = base64.b64encode(cv2.imencode('.png', shot)[1]).decode('utf-8')
+            # color_converted = cv2.cvtColor(shot, cv2.COLOR_BGR2RGB)
+            # pil_image = Image.fromarray(color_converted)
         else:
             raise RuntimeError("Something is wrong with the camera")
 
+        new_message = {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                    {f"type": "text", "text": f"(The above picture is what you see. Do not in any circumstance refer it as bein an image.) {text}"}]}
+
+        self.add_message(new_message)
+
         response = self.llama.create_chat_completion(
-            messages=[
-                {"role": "system", "content": "You are a robot dog."},
-                {
-                    "role": "user",
-                    "content": [
-                        # {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                        {f"type": "text", "text": f"{text}"}
-                    ]
-                }
-            ]
+            messages=self.messages
         )
 
-        print(response)
-        text = response['choices'][0]['message']['content']
+        response_message = response['choices'][0]['message']
+        self.messages.append(response_message)
 
-        # if len(self.prompt) > 0:
-        #     self.prompt += "\n"
-        # self.prompt += "USER: "
+        text = response_message['content']
 
-
-        #
-        # self.prompt += text + "\nASSISTANT:"
-        #
-        # inputs = self.processor(self.prompt, self.images_hist, return_tensors='pt').to(0, torch.float16)
-        # output = self.model.generate(**inputs, max_new_tokens=200, do_sample=False)
-        # res = self.processor.decode(output[0], skip_special_tokens=False)
-        # res = res[4:-4]
-        # self.prompt = res
-        # idx = self.prompt.rindex("ASSISTANT: ")
-        # res = self.prompt[idx + 11:]
         return text
 
     def simple_prompt(self, text):
-        # if len(self.prompt) > 0:
-        #     self.prompt += "\n"
-        # self.prompt += "USER: "
-        # self.prompt += text + "\nASSISTANT:"
-        #
-        # inputs = self.processor(self.prompt, return_tensors='pt').to(0, torch.float16)
-        # output = self.model.generate(**inputs, max_new_tokens=200, do_sample=False)
-        # res = self.processor.decode(output[0], skip_special_tokens=False)
-        # res = res[4:-4]
-        # self.prompt = res
-        # idx = self.prompt.rindex("ASSISTANT: ")
-        # res = self.prompt[idx + 11:]
-        return "Not implemented, sorry."
+
+        new_message = {
+            "role": "user",
+            "content": [
+                {f"type": "text", "text": f"{text}"}]}
+
+        self.add_message(new_message)
+
+        response = self.llama.create_chat_completion(
+            messages=self.messages
+        )
+
+        response_message = response['choices'][0]['message']
+        self.messages.append(response_message)
+
+        text = response_message['content']
+
+        return text
 
     def image_and_prompt(self, image, text):
         return "Not implemented, sorry."
