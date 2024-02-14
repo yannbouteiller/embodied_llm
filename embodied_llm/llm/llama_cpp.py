@@ -92,6 +92,7 @@ class ImageLLMLlamaCPP(ImageLLM):
             ]
         )
 
+        print(response)
         text = response['choices'][0]['message']['content']
 
         # if len(self.prompt) > 0:
