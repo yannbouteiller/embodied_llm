@@ -110,7 +110,7 @@ class EmbodiedLLM:
             trigger = 5
         elif "stand up" in text.lower():
             trigger = 6
-        elif "describe" in text.lower() or self.pipline == "huggingface" or self.pipline == "llamacpp":
+        elif "describe" in text.lower() or "see" in text.lower() or self.pipline == "huggingface":
             trigger = 7
         elif "reset chat" in text.lower():
             trigger = 8
