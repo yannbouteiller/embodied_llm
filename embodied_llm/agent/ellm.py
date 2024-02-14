@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from threading import Lock, Thread
 import struct
 import re
+import time
 
 from RealtimeTTS import TextToAudioStream
 from RealtimeSTT import AudioToTextRecorder
@@ -31,13 +32,14 @@ class EmbodiedLLM:
                  camera_device=0,
                  models_folder=None,
                  pipeline="huggingface",
-                 names=("rebecca", "rebeca", "rebbeca", "rebbecca"),
+                 names=("bbeca", "becca", "rebeca", "bekah", "rubika"),
                  zenoh_topic="mist/ellm",
                  zenoh_id=1):
 
         self.int_id = zenoh_id
         self.pipline = pipeline
         self.names = names
+        self.keep_history = False
 
         self.recorder = AudioToTextRecorder(model="tiny.en",
                                             language="en",
@@ -68,6 +70,7 @@ class EmbodiedLLM:
         self.zenoh_pub = self.zenoh_session.declare_publisher(zenoh_topic)
         self.zenoh_sub = self.zenoh_session.declare_subscriber(zenoh_topic, self.receive_zenoh_msg)
 
+        time.sleep(2.0)
         self.tts.feed("I'm ready.").play()
 
     def receive_zenoh_msg(self, msg):
@@ -90,30 +93,57 @@ class EmbodiedLLM:
         """
 
         name_detected = False
-        for name in self.names:
-            if name.lower() in text.lower():
-                name_detected = True
+        if any(x.lower() in text.lower() for x in self.names):
+            name_detected = True
 
         trigger = 0
 
-        if "bye" in text.lower():
-            trigger = 1
-        elif "memoriz" in text.lower():
-            if "you" in text.lower():
-                if "see" in text.lower():
-                    trigger = 2
-        elif "compare" in text.lower():
-            trigger = 3
-        elif "look for" in text.lower() or "search" in text.lower():
-            trigger = 4
-        elif "sit down" in text.lower():
-            trigger = 5
-        elif "stand up" in text.lower():
-            trigger = 6
-        elif "describe" in text.lower() or "see" in text.lower() or self.pipline == "huggingface":
-            trigger = 7
-        elif "reset chat" in text.lower():
-            trigger = 8
+        while True:
+
+            matches = ["bye"]
+            if any(x.lower() in text.lower() for x in matches):
+                trigger = 1
+                break
+
+            matches = ["memoriz", "you", "see"]
+            if all(x.lower() in text.lower() for x in matches) and self.pipline == "huggingface":
+                trigger = 2
+                break
+
+            matches = ["compare"]
+            if any(x.lower() in text.lower() for x in matches) and self.pipline == "huggingface":
+                trigger = 3
+
+            matches = ["look for", "search"]
+            if any(x.lower() in text.lower() for x in matches):
+                trigger = 4
+
+            matches = ["sit down"]
+            if any(x.lower() in text.lower() for x in matches):
+                trigger = 5
+
+            matches = ["stand up"]
+            if any(x.lower() in text.lower() for x in matches):
+                trigger = 6
+
+            matches = ["describe", "see"]
+            if any(x.lower() in text.lower() for x in matches) or self.pipline == "huggingface":
+                trigger = 7
+
+            matches = ["reset", "chat"]
+            if all(x.lower() in text.lower() for x in matches):
+                trigger = 8
+
+            matches = ["history"]
+            if any(x.lower() in text.lower() for x in matches):
+                matches = ["keep", "track"]
+                if any(x.lower() in text.lower() for x in matches):
+                    trigger = 9
+                matches = ["discard", "do not", "don't", "stop"]
+                if any(x.lower() in text.lower() for x in matches):
+                    trigger = 10
+
+            break
 
         return trigger, name_detected
 
@@ -176,53 +206,63 @@ class EmbodiedLLM:
                 # if not name_detected:
                 #     continue
 
-                if self.pipline == "huggingface" or self.pipline == "llamacpp":
-                    self.llm.reset_chat()
+                if name_detected:
 
-                if trigger == 1:
-                    # User said "Bye"
-                    self.tts.feed("Goodbye.").play()
-                    self.publish_zenoh_msg(TRIGGER_MSGS['Turnoff_cmd'])
-                    break
-                elif trigger == 2:
-                    # User asked to memorize what the camera currently sees
-                    res = self.llm.capture_image_and_memorize()
-                elif trigger == 3:
-                    # User asked to compare current image with memorized image
-                    res = self.llm.capture_image_and_compared_with_memorized(text)
-                elif trigger == 4:
-                    # User asked to look for something
-                    low = text.lower()
-                    idx = low.rindex("look for") + 8
-                    while idx < len(low) and not low[idx].isalpha():
-                        idx += 1
-                    low = low[idx:]
-                    low = re.sub('[^a-z ]', '', low)
-                    self.searched_str = low
-                    res = f"OK, I will look for {self.searched_str}."
-                    mode = "search"
-                    self.listen()
-                    self.publish_zenoh_msg(TRIGGER_MSGS['Explore_cmd'])
-                elif trigger == 5:
-                    # User asked to sit down
-                    self.publish_zenoh_msg(TRIGGER_MSGS['Sit_cmd'])
-                    res = "OK."
-                elif trigger == 6:
-                    # User asked to stand up
-                    self.publish_zenoh_msg(TRIGGER_MSGS['Stand_cmd'])
-                    res = "OK."
-                elif trigger == 7:
-                    # User asked to describe
-                    res = self.llm.capture_image_and_prompt(text)
-                elif trigger == 8:
-                    # User asked to reset chat
-                    self.llm.reset_chat()
-                    res = "I forgot the chat history."
-                else:
-                    res = self.llm.simple_prompt(text)
+                    if not self.keep_history:
+                        self.llm.reset_chat()
 
-                print(f"Laika: {res}")
-                self.tts.feed(res).play()
+                    if trigger == 1:
+                        # User said "Bye"
+                        self.tts.feed("Goodbye.").play()
+                        self.publish_zenoh_msg(TRIGGER_MSGS['Turnoff_cmd'])
+                        break
+                    elif trigger == 2:
+                        # User asked to memorize what the camera currently sees
+                        res = self.llm.capture_image_and_memorize()
+                    elif trigger == 3:
+                        # User asked to compare current image with memorized image
+                        res = self.llm.capture_image_and_compared_with_memorized(text)
+                    elif trigger == 4:
+                        # User asked to look for something
+                        low = text.lower()
+                        idx = low.rindex("look for") + 8
+                        while idx < len(low) and not low[idx].isalpha():
+                            idx += 1
+                        low = low[idx:]
+                        low = re.sub('[^a-z ]', '', low)
+                        self.searched_str = low
+                        res = f"OK, I will look for {self.searched_str}."
+                        mode = "search"
+                        self.listen()
+                        self.publish_zenoh_msg(TRIGGER_MSGS['Explore_cmd'])
+                    elif trigger == 5:
+                        # User asked to sit down
+                        self.publish_zenoh_msg(TRIGGER_MSGS['Sit_cmd'])
+                        res = "OK."
+                    elif trigger == 6:
+                        # User asked to stand up
+                        self.publish_zenoh_msg(TRIGGER_MSGS['Stand_cmd'])
+                        res = "OK."
+                    elif trigger == 7:
+                        # User asked to describe
+                        res = self.llm.capture_image_and_prompt(text)
+                    elif trigger == 8:
+                        # User asked to reset chat
+                        self.llm.reset_chat()
+                        res = "I forgot the chat history."
+                    elif trigger == 9:
+                        # User asked to keep track of chat history
+                        self.keep_history = True
+                        res = "OK, I'll keep track of chat history."
+                    elif trigger == 10:
+                        # User asked to not keep track of chat history
+                        self.keep_history = False
+                        res = "OK, I won't keep track of chat history."
+                    else:
+                        res = self.llm.simple_prompt(text)
+
+                    print(f"Laika: {res}")
+                    self.tts.feed(res).play()
             elif mode == "search":
                 self.llm.reset_chat()
                 text = f"Do you see {self.searched_str}?"

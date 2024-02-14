@@ -67,7 +67,7 @@ class ImageLLMLlamaCPP(ImageLLM):
         pass
 
     def reset_chat(self):
-        self.messages = [{"role": "system", "content": f"You are an astronaut."}]
+        self.messages = [{"role": "system", "content": f"Robotics lab"}]
 
     def clip_history(self):
         if len(self.messages) > self.max_history + 1:
