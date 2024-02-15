@@ -99,7 +99,7 @@ class AudioToTextRecorder:
 
                  # Voice activation parameters
                  silero_sensitivity: float = INIT_SILERO_SENSITIVITY,
-                 silero_use_onnx: bool = False,
+                 silero_use_onnx: bool = True,
                  webrtc_sensitivity: int = INIT_WEBRTC_SENSITIVITY,
                  post_speech_silence_duration: float = (
                      INIT_POST_SPEECH_SILENCE_DURATION

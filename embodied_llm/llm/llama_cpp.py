@@ -68,7 +68,7 @@ class ImageLLMLlamaCPP(ImageLLM):
         pass
 
     def reset_chat(self):
-        self.messages = [{"role": "system", "content": f"You are a helpful friend."}]
+        self.messages = [{"role": "system", "content": f"You as Rebecca. As Rebecca you are a helpful robot dog. You and Giovanni are in a university lab running experiments. Print out only exactly the words that Rebecca would speak out, do not add anything. Don't repeat. Answer short, only few words, as if in a talk. Craft your response only from the first-person perspective of Rebecca and never as Giovanni. ASSISTANT: Hey, I am Rebecca."}]
 
     def clip_history(self):
         if len(self.messages) > self.max_history + 1:

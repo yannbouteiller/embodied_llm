@@ -81,7 +81,7 @@ class EmbodiedLLM:
         self.zenoh_pub = self.zenoh_session.declare_publisher(zenoh_topic_commands)
         self.zenoh_sub = self.zenoh_session.declare_subscriber(zenoh_topic_images, self.receive_zenoh_image)
 
-        time.sleep(2.0)
+        time.sleep(4.0)
         self.tts.feed("I'm ready.").play()
 
     def receive_zenoh_image(self, msg):
