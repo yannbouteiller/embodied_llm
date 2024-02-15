@@ -28,13 +28,6 @@ Modded by MISTlab
 """
 
 
-import cv2
-from pathlib import Path
-
-from matplotlib import pyplot as plt
-from RealtimeTTS import BaseEngine
-import piper
-
 import torch.multiprocessing as mp
 from typing import List, Union
 import faster_whisper
@@ -70,7 +63,7 @@ INIT_WAKE_WORD_TIMEOUT = 5.0
 ALLOWED_LATENCY_LIMIT = 10
 
 TIME_SLEEP = 0.02
-SAMPLE_RATE = 44100  # 16000
+SAMPLE_RATE = 16000
 BUFFER_SIZE = 512
 INT16_MAX_ABS_VALUE = 32768.0
 
@@ -1581,44 +1574,3 @@ class AudioToTextRecorder:
               exception, if any.
         """
         self.shutdown()
-
-
-class PiperEngine(BaseEngine):
-    def __init__(self, models_folder, voice='en_GB-alba-medium'):
-        self.engine_name = "piper"
-        self.path_voice = Path(models_folder) / (voice + '.onnx')
-        self.engine = piper.PiperVoice.load(self.path_voice, config_path=None, use_cuda=False)
-
-        # Indicates if the engine can handle generators.
-        self.can_consume_generators = False
-
-    def get_stream_info(self):
-        """
-        Returns the PyAudio stream configuration information suitable for System Engine.
-
-        Returns:
-            tuple: A tuple containing the audio format, number of channels, and the sample rate.
-                  - Format (int): The format of the audio stream. pyaudio.paInt16 represents 16-bit integers.
-                  - Channels (int): The number of audio channels. 1 represents mono audio.
-                  - Sample Rate (int): The sample rate of the audio in Hz. 16000 represents 16kHz sample rate.
-        """
-        return pyaudio.paInt16, 1, 22050
-
-    def synthesize(self, text: str) -> bool:
-        """
-        Synthesizes text to audio stream.
-
-        Args:
-            text (str): Text to synthesize.
-        """
-        audio_stream = self.engine.synthesize_stream_raw(text)
-        for audio_bytes in audio_stream:
-            self.queue.put(audio_bytes)
-        return True
-
-
-def display(img):
-    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    plt.imshow(rgb)
-    plt.title('my picture')
-    plt.show()

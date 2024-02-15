@@ -10,7 +10,8 @@ from RealtimeTTS import TextToAudioStream
 import zenoh
 import numpy as np
 
-from embodied_llm.asr.real_time_tts import PiperEngine, AudioToTextRecorder
+from embodied_llm.asr.real_time_stt import AudioToTextRecorder
+from embodied_llm.tts.piper import PiperEngine
 
 
 TRIGGER_MSGS = {
@@ -34,7 +35,7 @@ class EmbodiedLLM:
                  camera_device=0,
                  models_folder=None,
                  pipeline="huggingface",
-                 names=("bbeca", "becca", "rebeca", "bekah", "becah", "rubik", "rubbik"),
+                 names=("bbeca", "becca", "rebeca", "bekah", "becah", "rubik", "rubbik", "rubik"),
                  zenoh_topic_commands="mist/ellm",
                  zenoh_topic_images="mist/images",
                  zenoh_id=1,
@@ -69,7 +70,7 @@ class EmbodiedLLM:
         self._listening = False
         self.t_listen = None
 
-        self.tts_engine = PiperEngine(models_folder=models_folder, voice='en_GB-alan-low')
+        self.tts_engine = PiperEngine(models_folder=models_folder, voice='en_GB-alba-medium')
         self.tts = TextToAudioStream(self.tts_engine, log_characters=False)
 
         self.remote_camera = remote_camera
