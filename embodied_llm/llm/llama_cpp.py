@@ -60,7 +60,8 @@ class ImageLLMLlamaCPP(ImageLLM):
             n_ctx=2048,  # n_ctx should be increased to accomodate the image embedding
             logits_all=True,  # needed to make llava work
             main_gpu=main_gpu,
-            n_gpu_layers=n_gpu_layers
+            n_gpu_layers=n_gpu_layers,
+            stream=True
         )
 
     def stop(self):
