@@ -5,10 +5,10 @@ import re
 import time
 
 from RealtimeTTS import TextToAudioStream
-from RealtimeSTT import AudioToTextRecorder
+# from RealtimeSTT import AudioToTextRecorder
 import zenoh
 
-from embodied_llm.asr.real_time_tts import PiperEngine
+from embodied_llm.asr.real_time_tts import PiperEngine, AudioToTextRecorder
 
 
 TRIGGER_MSGS = {
