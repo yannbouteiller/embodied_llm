@@ -148,12 +148,21 @@ class ImageLLMLlamaCPP(ImageLLM):
             messages=self.messages
         )
 
+        first_chunk = True
+        for completion_chunk in response:
+            response_chunk = completion_chunk['choices'][0]['text']
+            if first_chunk and text.isspace():
+                print("DEBUG: first chunk is space")
+                continue
+            first_chunk = False
+            yield text
+
         response_message = response['choices'][0]['message']
         self.messages.append(response_message)
 
-        text = response_message['content']
+        # text = response_message['content']
 
-        return text
+        # return text
 
     def capture_image_and_memorize(self):
         # self.reset_chat()
