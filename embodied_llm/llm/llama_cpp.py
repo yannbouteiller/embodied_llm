@@ -68,7 +68,7 @@ class ImageLLMLlamaCPP(ImageLLM):
         pass
 
     def reset_chat(self):
-        self.messages = [{"role": "system", "content": f"You as Rebecca. As Rebecca you are a helpful robot dog. You and Giovanni are in a university lab running experiments. Print out only exactly the words that Rebecca would speak out, do not add anything. Don't repeat. Answer short, only few words, as if in a talk. Craft your response only from the first-person perspective of Rebecca and never as Giovanni. ASSISTANT: Hey, I am Rebecca."}]
+        self.messages = [{"role": "system", "content": f"You are a helpful friend."}]
 
     def clip_history(self):
         if len(self.messages) > self.max_history + 1:
@@ -148,21 +148,12 @@ class ImageLLMLlamaCPP(ImageLLM):
             messages=self.messages
         )
 
-        first_chunk = True
-        for completion_chunk in response:
-            response_chunk = completion_chunk['choices'][0]['text']
-            if first_chunk and text.isspace():
-                print("DEBUG: first chunk is space")
-                continue
-            first_chunk = False
-            yield text
-
         response_message = response['choices'][0]['message']
         self.messages.append(response_message)
 
-        # text = response_message['content']
+        text = response_message['content']
 
-        # return text
+        return text
 
     def capture_image_and_memorize(self):
         # self.reset_chat()
