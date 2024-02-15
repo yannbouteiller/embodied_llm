@@ -69,7 +69,7 @@ class EmbodiedLLM:
         self._listening = False
         self.t_listen = None
 
-        self.tts_engine = PiperEngine(models_folder=models_folder)
+        self.tts_engine = PiperEngine(models_folder=models_folder, voice='en_GB-alan-low')
         self.tts = TextToAudioStream(self.tts_engine, log_characters=False)
 
         self.remote_camera = remote_camera

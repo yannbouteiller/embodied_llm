@@ -1585,9 +1585,9 @@ class AudioToTextRecorder:
 
 
 class PiperEngine(BaseEngine):
-    def __init__(self, models_folder):
+    def __init__(self, models_folder, voice='en_GB-alba-medium'):
         self.engine_name = "piper"
-        self.path_voice = Path(models_folder) / 'en_GB-alba-medium.onnx'
+        self.path_voice = Path(models_folder) / (voice + '.onnx')
         self.engine = piper.PiperVoice.load(self.path_voice, config_path=None, use_cuda=False)
 
         # Indicates if the engine can handle generators.
