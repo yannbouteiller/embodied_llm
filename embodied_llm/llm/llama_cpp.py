@@ -110,6 +110,30 @@ class ImageLLMLlamaCPP(ImageLLM):
 
         return text
 
+    def image_and_prompt(self, image, text):
+
+        base64_image = base64.b64encode(cv2.imencode('.png', image)[1]).decode('utf-8')
+
+        new_message = {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                {f"type": "text",
+                 "text": f"(The above picture is what you see. Do not in any circumstance refer it as bein an image.) {text}"}]}
+
+        self.add_message(new_message)
+
+        response = self.llama.create_chat_completion(
+            messages=self.messages
+        )
+
+        response_message = response['choices'][0]['message']
+        self.messages.append(response_message)
+
+        text = response_message['content']
+
+        return text
+
     def simple_prompt(self, text):
 
         new_message = {
@@ -129,12 +153,6 @@ class ImageLLMLlamaCPP(ImageLLM):
         text = response_message['content']
 
         return text
-
-    def image_and_prompt(self, image, text):
-        return "Not implemented, sorry."
-
-    def image_and_prompt(image, text):
-        pass
 
     def capture_image_and_memorize(self):
         # self.reset_chat()

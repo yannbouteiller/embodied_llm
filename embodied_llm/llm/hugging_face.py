@@ -83,6 +83,28 @@ class ImageLLMHuggingFace(ImageLLM):
         res = self.prompt[idx + 11:]
         return res
 
+    def image_and_prompt(self, image, text):
+        if len(self.prompt) > 0:
+            self.prompt += "\n"
+        self.prompt += "USER: "
+
+        color_converted = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        pil_image = Image.fromarray(color_converted)
+        self.prompt += "<image>\n"
+        self.prompt += "(CONTEXT: imagine you are seeing this image) "
+        self.images_hist.append(pil_image)
+
+        self.prompt += text + "\nASSISTANT:"
+
+        inputs = self.processor(self.prompt, self.images_hist, return_tensors='pt').to(0, torch.float16)
+        output = self.model.generate(**inputs, max_new_tokens=200, do_sample=False)
+        res = self.processor.decode(output[0], skip_special_tokens=False)
+        res = res[4:-4]
+        self.prompt = res
+        idx = self.prompt.rindex("ASSISTANT: ")
+        res = self.prompt[idx + 11:]
+        return res
+
     def simple_prompt(self, text):
         if len(self.prompt) > 0:
             self.prompt += "\n"
@@ -97,9 +119,6 @@ class ImageLLMHuggingFace(ImageLLM):
         idx = self.prompt.rindex("ASSISTANT: ")
         res = self.prompt[idx + 11:]
         return res
-
-    def image_and_prompt(image, text):
-        pass
 
     def capture_image_and_memorize(self):
         self.reset_chat()

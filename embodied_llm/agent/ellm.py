@@ -4,9 +4,11 @@ import struct
 import re
 import time
 
+import cv2
 from RealtimeTTS import TextToAudioStream
 # from RealtimeSTT import AudioToTextRecorder
 import zenoh
+import numpy as np
 
 from embodied_llm.asr.real_time_tts import PiperEngine, AudioToTextRecorder
 
@@ -33,9 +35,13 @@ class EmbodiedLLM:
                  models_folder=None,
                  pipeline="huggingface",
                  names=("bbeca", "becca", "rebeca", "bekah", "rubika"),
-                 zenoh_topic="mist/ellm",
-                 zenoh_id=1):
+                 zenoh_topic_commands="mist/ellm",
+                 zenoh_topic_images="mist/images",
+                 zenoh_id=1,
+                 remote_camera=False,
+                 send_commands=False):
 
+        self.send_commands = send_commands
         self.int_id = zenoh_id
         self.pipline = pipeline
         self.names = names
@@ -66,21 +72,42 @@ class EmbodiedLLM:
         self.tts_engine = PiperEngine(models_folder=models_folder)
         self.tts = TextToAudioStream(self.tts_engine, log_characters=False)
 
+        self.remote_camera = remote_camera
+        self._image = None
+        self._lock_image = Lock()
+
         self.zenoh_session = zenoh.open()
-        self.zenoh_pub = self.zenoh_session.declare_publisher(zenoh_topic)
-        self.zenoh_sub = self.zenoh_session.declare_subscriber(zenoh_topic, self.receive_zenoh_msg)
+        self.zenoh_pub = self.zenoh_session.declare_publisher(zenoh_topic_commands)
+        self.zenoh_sub = self.zenoh_session.declare_subscriber(zenoh_topic_images, self.receive_zenoh_image)
 
         time.sleep(2.0)
         self.tts.feed("I'm ready.").play()
 
-    def receive_zenoh_msg(self, msg):
-        pass
+    def receive_zenoh_image(self, msg):
+        b_string = msg.payload
+        array = np.fromstring(b_string, np.uint8)
+        image = cv2.imdecode(array, cv2.IMREAD_COLOR)
+        with self._lock_image:
+            self._image = image
+
+    def get_image(self):
+        cc = True
+        while cc:
+            with self._lock_image:
+                img = self._image
+            if img is None:
+                print("No received image")
+                time.sleep(0.1)
+            else:
+                cc = False
+        return img
 
     def publish_zenoh_msg(self, int_msg):
-        b_string = struct.pack('H', self.int_id)
-        b_string += struct.pack('H', int_msg)
-        data = zenoh.Value(b_string)
-        self.zenoh_pub.put(data)
+        if self.send_commands:
+            b_string = struct.pack('H', self.int_id)
+            b_string += struct.pack('H', int_msg)
+            data = zenoh.Value(b_string)
+            self.zenoh_pub.put(data)
 
     def triggers(self, text):
         """
@@ -218,10 +245,17 @@ class EmbodiedLLM:
                         break
                     elif trigger == 2:
                         # User asked to memorize what the camera currently sees
-                        res = self.llm.capture_image_and_memorize()
+                        if self.remote_camera:
+                            _ = self.get_image()
+                            res = "OK"
+                        else:
+                            res = self.llm.capture_image_and_memorize()
                     elif trigger == 3:
                         # User asked to compare current image with memorized image
-                        res = self.llm.capture_image_and_compared_with_memorized(text)
+                        if self.remote_camera:
+                            res = "Sorry, not implemented."
+                        else:
+                            res = self.llm.capture_image_and_compared_with_memorized(text)
                     elif trigger == 4:
                         # User asked to look for something
                         low = text.lower()
@@ -245,7 +279,11 @@ class EmbodiedLLM:
                         res = "OK."
                     elif trigger == 7:
                         # User asked to describe
-                        res = self.llm.capture_image_and_prompt(text)
+                        if self.remote_camera:
+                            image = self.get_image()
+                            res = self.llm.image_and_prompt(image, text)
+                        else:
+                            res = self.llm.capture_image_and_prompt(text)
                     elif trigger == 8:
                         # User asked to reset chat
                         self.llm.reset_chat()
@@ -266,7 +304,11 @@ class EmbodiedLLM:
             elif mode == "search":
                 self.llm.reset_chat()
                 text = f"Do you see {self.searched_str}?"
-                res = self.llm.capture_image_and_prompt(text)
+                if self.remote_camera:
+                    image = self.get_image()
+                    res = self.llm.image_and_prompt(image, text)
+                else:
+                    res = self.llm.capture_image_and_prompt(text)
 
                 while len(res) > 0 and not res[0].isalpha():
                     res = res[1:]
@@ -297,6 +339,7 @@ class EmbodiedLLM:
                         self.tts.feed(res).play()
                         self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
                         mode = "chat"
+                        self.publish_zenoh_msg(TRIGGER_MSGS['Home_cmd'])
                     print(f"DEBUG NO: {res}")
             iteration += 1
 
@@ -310,6 +353,9 @@ class EmbodiedLLM:
 
 def main(args):
     from pathlib import Path
+    remote = args.remote
+    send_commands = args.send_commands
+    print(f"REMOTE: {remote}")
     microphone = args.microphone
     camera = args.camera
     max_iterations = args.max_iterations
@@ -318,7 +364,7 @@ def main(args):
     if models_folder is None:
         models_folder = Path.home() / "ellm"
 
-    ellm = EmbodiedLLM(input_device=microphone, models_folder=models_folder, pipeline=pipeline, camera_device=camera)
+    ellm = EmbodiedLLM(input_device=microphone, models_folder=models_folder, pipeline=pipeline, camera_device=camera, remote_camera=remote, send_commands=send_commands)
     ellm.loop(max_iterations=max_iterations)
     ellm.stop()
 
@@ -330,6 +376,8 @@ if __name__ == "__main__":
     parser.add_argument('--max-iterations', type=int, default=-1, help='microphone index')
     parser.add_argument('--models-folder', type=str, default=None, help='path of the folder where models should be stored')
     parser.add_argument('--pipeline', type=str, default="llamacpp", help='one of: huggingface, llamacpp')
+    parser.add_argument("--remote", help="remote camera", action="store_true")
+    parser.add_argument("--send-commands", help="send zenoh commands", action="store_true")
     arguments = parser.parse_args()
 
     main(arguments)

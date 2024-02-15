@@ -15,6 +15,9 @@ class ImageLLM(ABC):
     def image(self, image):
         raise NotImplementedError
 
+    def image_and_prompt(self, image, text):
+        raise NotImplementedError
+
     def capture_image_and_memorize(self):
         raise NotImplementedError
 
