@@ -34,7 +34,7 @@ class EmbodiedLLM:
                  camera_device=0,
                  models_folder=None,
                  pipeline="huggingface",
-                 names=("bbeca", "becca", "rebeca", "bekah", "rubika"),
+                 names=("bbeca", "becca", "rebeca", "bekah", "becah", "rubik", "rubbik"),
                  zenoh_topic_commands="mist/ellm",
                  zenoh_topic_images="mist/images",
                  zenoh_id=1,
@@ -145,11 +145,11 @@ class EmbodiedLLM:
             if any(x.lower() in text.lower() for x in matches):
                 trigger = 4
 
-            matches = ["sit down"]
+            matches = ["sit down", "sits down"]
             if any(x.lower() in text.lower() for x in matches):
                 trigger = 5
 
-            matches = ["stand up"]
+            matches = ["stand up", "stands up"]
             if any(x.lower() in text.lower() for x in matches):
                 trigger = 6
 
