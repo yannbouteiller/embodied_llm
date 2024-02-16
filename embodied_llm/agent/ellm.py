@@ -222,20 +222,18 @@ class EmbodiedLLM:
         :param max_iterations: int: number of maximum iterations of the loop. -1 for infinite.
         """
         iteration = 0
+        text = self.recorder.text()
+        trigger, name_detected = self.triggers(text)
+        
         mode = "chat"
         while max_iterations < 0 or iteration <= max_iterations:
             if mode == "chat":
-
-                text = self.recorder.text()
                 print(f"User: {text}")
-
-                trigger, name_detected = self.triggers(text)
                 print(f"DEBUG: name detected: {name_detected}, trigger: {trigger}")
                 # if not name_detected:
                 #     continue
 
                 if name_detected:
-
                     if not self.keep_history:
                         self.llm.reset_chat()
 
@@ -302,46 +300,48 @@ class EmbodiedLLM:
 
                     print(f"Laika: {res}")
                     self.tts.feed(res).play()
+                    
             elif mode == "search":
-                self.llm.reset_chat()
-                text = f"Do you see {self.searched_str}?"
-                if self.remote_camera:
-                    image = self.get_image()
-                    res = self.llm.image_and_prompt(image, text)
-                else:
-                    res = self.llm.capture_image_and_prompt(text)
-
-                while len(res) > 0 and not res[0].isalpha():
-                    res = res[1:]
-
-                if res.lower().startswith("yes"):
-                    # TODO: Found object, trigger action here
-                    print(f"DEBUG YES: {res}")
-                    idx = 3
-                    while idx < len(res) and not res[idx].isalpha():
-                        idx += 1
-                    if idx >= len(res):
-                        res = f"I found {self.searched_str}"
+                if name_detected:
+                    self.llm.reset_chat()
+                    text = f"Do you see {self.searched_str}?"
+                    if self.remote_camera:
+                        image = self.get_image()
+                        res = self.llm.image_and_prompt(image, text)
                     else:
-                        res = res[idx:]
-                    self.tts.feed(res).play()
-                    self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
-                    mode = "chat"
-                    self.publish_zenoh_msg(TRIGGER_MSGS['Home_cmd'])
-                else:
-                    stop = False
-                    with self._lock:
-                        for buf_text in self._text_buffer:
-                            if "stop" in buf_text.lower():
-                                stop = True
-                        self._text_buffer = []
-                    if stop:
-                        res = f"Fine, I stop looking for {self.searched_str}."
+                        res = self.llm.capture_image_and_prompt(text)
+    
+                    while len(res) > 0 and not res[0].isalpha():
+                        res = res[1:]
+    
+                    if res.lower().startswith("yes"):
+                        # TODO: Found object, trigger action here
+                        print(f"DEBUG YES: {res}")
+                        idx = 3
+                        while idx < len(res) and not res[idx].isalpha():
+                            idx += 1
+                        if idx >= len(res):
+                            res = f"I found {self.searched_str}"
+                        else:
+                            res = res[idx:]
                         self.tts.feed(res).play()
                         self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
                         mode = "chat"
                         self.publish_zenoh_msg(TRIGGER_MSGS['Home_cmd'])
-                    print(f"DEBUG NO: {res}")
+                    else:
+                        stop = False
+                        with self._lock:
+                            for buf_text in self._text_buffer:
+                                if "stop" in buf_text.lower():
+                                    stop = True
+                            self._text_buffer = []
+                        if stop:
+                            res = f"Fine, I stop looking for {self.searched_str}."
+                            self.tts.feed(res).play()
+                            self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
+                            mode = "chat"
+                            self.publish_zenoh_msg(TRIGGER_MSGS['Home_cmd'])
+                        print(f"DEBUG NO: {res}")
             iteration += 1
 
     def stop(self):
