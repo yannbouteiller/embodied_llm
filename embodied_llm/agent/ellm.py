@@ -123,7 +123,7 @@ class EmbodiedLLM:
         name_detected = False
         if any(x.lower() in text.lower() for x in self.names):
             name_detected = True
-
+            print('\a')
         trigger = 0
 
         while True:
