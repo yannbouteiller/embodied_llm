@@ -35,7 +35,6 @@ class EmbodiedLLM:
                  camera_device=0,
                  models_folder=None,
                  pipeline="huggingface",
-                 names=("bbeca", "becca", "rebeca", "bekah", "becah", "rubik", "rubbik", "rubik"),
                  zenoh_topic_commands="mist/ellm",
                  zenoh_topic_images="mist/images",
                  zenoh_id=1,
@@ -45,7 +44,6 @@ class EmbodiedLLM:
         self.send_commands = send_commands
         self.int_id = zenoh_id
         self.pipline = pipeline
-        self.names = names
         self.keep_history = False
 
         self.recorder = AudioToTextRecorder(model="tiny.en",
@@ -120,10 +118,6 @@ class EmbodiedLLM:
         :return: int: trigger
         """
 
-        name_detected = False
-        if any(x.lower() in text.lower() for x in self.names):
-            name_detected = True
-            print('\a')
         trigger = 0
 
         while True:
@@ -173,7 +167,7 @@ class EmbodiedLLM:
 
             break
 
-        return trigger, name_detected
+        return trigger
 
     def listen(self):
         """
@@ -223,17 +217,15 @@ class EmbodiedLLM:
         """
         iteration = 0
         text = self.recorder.text()
-        trigger, name_detected = self.triggers(text)
+        trigger = self.triggers(text)
         
         mode = "chat"
         while max_iterations < 0 or iteration <= max_iterations:
             if mode == "chat":
                 print(f"User: {text}")
-                print(f"DEBUG: name detected: {name_detected}, trigger: {trigger}")
-                # if not name_detected:
-                #     continue
+                print(f"DEBUG: trigger: {trigger}")
 
-                if name_detected:
+                if trigger != 0:
                     if not self.keep_history:
                         self.llm.reset_chat()
 
@@ -302,7 +294,7 @@ class EmbodiedLLM:
                     self.tts.feed(res).play()
                     
             elif mode == "search":
-                if name_detected:
+                if trigger != 0:
                     self.llm.reset_chat()
                     text = f"Do you see {self.searched_str}?"
                     if self.remote_camera:
