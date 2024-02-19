@@ -6,11 +6,14 @@ import time
 
 import cv2
 from RealtimeTTS import TextToAudioStream
-# from RealtimeSTT import AudioToTextRecorder
+from RealtimeSTT import AudioToTextRecorder
 import zenoh
 import numpy as np
 
-from embodied_llm.asr.real_time_stt import AudioToTextRecorder
+# Initialize recorder before importing piper
+# to prevent error due to ALSA side effects.
+ar = AudioToTextRecorder(model="tiny.en", language="en", input_device_index=1, spinner=False)
+
 from embodied_llm.tts.piper import PiperEngine
 
 
@@ -40,16 +43,14 @@ class EmbodiedLLM:
                  zenoh_id=1,
                  remote_camera=False,
                  send_commands=False):
+        global ar
 
         self.send_commands = send_commands
         self.int_id = zenoh_id
         self.pipline = pipeline
         self.keep_history = False
 
-        self.recorder = AudioToTextRecorder(model="tiny.en",
-                                            language="en",
-                                            input_device_index=input_device,
-                                            spinner=False)
+        self.recorder = ar
 
         if pipeline == "huggingface":
             print(f"DEBUG: using hugging face pipeline")
