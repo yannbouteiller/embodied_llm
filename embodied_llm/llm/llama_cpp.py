@@ -6,6 +6,8 @@ import cv2
 from PIL import Image
 from matplotlib import pyplot as plt
 
+import openai
+
 from embodied_llm.llm.image_llm import ImageLLM
 
 
@@ -26,8 +28,8 @@ class ImageLLMLlamaCPP(ImageLLM):
                  n_gpu_layers=-1
                  ):
 
-        from llama_cpp import Llama
-        from llama_cpp.llama_chat_format import Llava15ChatHandler
+        #from llama_cpp import Llama
+        #from llama_cpp.llama_chat_format import Llava15ChatHandler
 
         models_folder = Path(models_folder)
 
@@ -52,17 +54,10 @@ class ImageLLMLlamaCPP(ImageLLM):
         if not path_model.exists():
             raise FileNotFoundError(path_model)
 
-        chat_handler = Llava15ChatHandler(clip_model_path=str(path_clip))
+        #chat_handler = Llava15ChatHandler(clip_model_path=str(path_clip))
 
-        self.llama = Llama(
-            model_path=str(path_model),
-            chat_handler=chat_handler,
-            n_ctx=2048,  # n_ctx should be increased to accomodate the image embedding
-            logits_all=True,  # needed to make llava work
-            main_gpu=main_gpu,
-            n_gpu_layers=n_gpu_layers,
-            stream=True
-        )
+        self.llama = openai.OpenAI(base_url="http://localhost:8000/v1", api_key="sk-xxx")
+
 
     def stop(self):
         pass
@@ -100,7 +95,7 @@ class ImageLLMLlamaCPP(ImageLLM):
 
         self.add_message(new_message)
 
-        response = self.llama.create_chat_completion(
+        response = self.llama.chat.completions.create(
             messages=self.messages
         )
 
@@ -124,7 +119,8 @@ class ImageLLMLlamaCPP(ImageLLM):
 
         self.add_message(new_message)
 
-        response = self.llama.create_chat_completion(
+        response = self.llama.chat.completions.create(
+            model=self.model_name,
             messages=self.messages
         )
 
@@ -144,21 +140,23 @@ class ImageLLMLlamaCPP(ImageLLM):
 
         self.add_message(new_message)
 
-        response = self.llama.create_chat_completion(
+        response = self.llama.chat.completions.create(
+            model=self.model_name,
+            stream=True,
             messages=self.messages
         )
 
         first_chunk = True
+        output = ""
         for completion_chunk in response:
-            response_chunk = completion_chunk['choices'][0]['text']
-            if first_chunk and text.isspace():
-                print("DEBUG: first chunk is space")
+            text = completion_chunk.choices[0].delta.content
+            if not text:
                 continue
-            first_chunk = False
+            output += text
             yield text
 
-        response_message = response['choices'][0]['message']
-        self.messages.append(response_message)
+        print(output)
+        self.messages.append(output)
 
         # text = response_message['content']
 

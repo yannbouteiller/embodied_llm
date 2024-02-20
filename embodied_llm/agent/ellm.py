@@ -1,3 +1,5 @@
+from RealtimeSTT import AudioToTextRecorder
+
 from argparse import ArgumentParser
 from threading import Lock, Thread
 import struct
@@ -5,13 +7,13 @@ import re
 import time
 
 import cv2
-from RealtimeTTS import TextToAudioStream
-# from RealtimeSTT import AudioToTextRecorder
+from RealtimeSTT import AudioToTextRecorder
+import RealtimeSTT
 import zenoh
 import numpy as np
 
-from embodied_llm.asr.real_time_stt import AudioToTextRecorder
-from embodied_llm.tts.piper import PiperEngine
+#from embodied_llm.asr.real_time_stt import AudioToTextRecorder
+
 
 
 TRIGGER_MSGS = {
@@ -41,17 +43,24 @@ class EmbodiedLLM:
                  zenoh_id=1,
                  remote_camera=False,
                  send_commands=False):
+        global ar
 
         self.send_commands = send_commands
         self.int_id = zenoh_id
         self.pipline = pipeline
         self.names = names
         self.keep_history = False
+        def activation_callback():
+            print("Wake word detected")
+            print("\a")
 
-        self.recorder = AudioToTextRecorder(model="tiny.en",
-                                            language="en",
-                                            input_device_index=input_device,
-                                            spinner=False)
+        def timeout():
+            print("No speech detected")
+
+        def on_vad_detect_start():
+            print("Vad detect")
+
+        self.recorder = AudioToTextRecorder(model="tiny.en", language="en",wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_vad_detect_start=on_vad_detect_start, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback,wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False)
 
         if pipeline == "huggingface":
             print(f"DEBUG: using hugging face pipeline")
@@ -70,6 +79,8 @@ class EmbodiedLLM:
         self._listening = False
         self.t_listen = None
 
+        from RealtimeTTS import TextToAudioStream
+        from embodied_llm.tts.piper import PiperEngine
         self.tts_engine = PiperEngine(models_folder=models_folder, voice='en_GB-alba-medium')
         self.tts = TextToAudioStream(self.tts_engine, log_characters=False)
 
@@ -82,7 +93,7 @@ class EmbodiedLLM:
         self.zenoh_sub = self.zenoh_session.declare_subscriber(zenoh_topic_images, self.receive_zenoh_image)
 
         time.sleep(4.0)
-        self.tts.feed("I'm ready.").play()
+        self.tts.feed("I'm ready.").play(fast_sentence_fragment=True, buffer_threshold_seconds=999, minimum_sentence_length=18)
 
     def receive_zenoh_image(self, msg):
         b_string = msg.payload
@@ -120,9 +131,10 @@ class EmbodiedLLM:
         :return: int: trigger
         """
 
-        name_detected = False
-        if any(x.lower() in text.lower() for x in self.names):
-            name_detected = True
+        #name_detected = False
+        name_detected = True
+        #if any(x.lower() in text.lower() for x in self.names):
+        #    name_detected = True
 
         trigger = 0
 
@@ -300,7 +312,7 @@ class EmbodiedLLM:
                     else:
                         res = self.llm.simple_prompt(text)
 
-                    print(f"Laika: {res}")
+                    #print(f"Laika: {res}")
                     self.tts.feed(res).play()
             elif mode == "search":
                 self.llm.reset_chat()
