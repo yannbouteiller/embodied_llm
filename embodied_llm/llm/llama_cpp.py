@@ -46,7 +46,7 @@ class ImageLLMLlamaCPP(ImageLLM):
         path_model = mp / self.model_name
 
         self.messages = None
-        self.max_history = 5
+        self.max_history = 9
         self.reset_chat()
 
         if not path_clip.exists():
@@ -63,7 +63,7 @@ class ImageLLMLlamaCPP(ImageLLM):
         pass
 
     def reset_chat(self):
-        self.messages = [{"role": "system", "content": f"You as Rebecca. As Rebecca you are a helpful robot dog. You and Giovanni are in a university lab running experiments. Print out only exactly the words that Rebecca would speak out, do not add anything. Don't repeat. Answer short, only few words, as if in a talk. Craft your response only from the first-person perspective of Rebecca and never as Giovanni. ASSISTANT: Hey, I am Rebecca."}]
+        self.messages = [{"role": "system", "content": f"You are Jarvis, a helpful robot. You are in the MIST Lab at Polytechnique Montreal.  You answer clearly, politely, and concisely."}]
 
     def clip_history(self):
         if len(self.messages) > self.max_history + 1:
@@ -91,20 +91,30 @@ class ImageLLMLlamaCPP(ImageLLM):
                 "role": "user",
                 "content": [
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                    {f"type": "text", "text": f"(The above picture is what you see. Do not in any circumstance refer it as bein an image.) {text}"}]}
+                    {f"type": "text", "text": f"The picture is what you see. Do not in any circumstance refer it as being an image. {text}"}]}
 
         self.add_message(new_message)
 
         response = self.llama.chat.completions.create(
+            stream=True,
+            model=self.model_name,
             messages=self.messages
         )
 
-        response_message = response['choices'][0]['message']
-        self.messages.append(response_message)
+        output = ""
+        for completion_chunk in response:
+            text = completion_chunk.choices[0].delta.content
+            if not text:
+                continue
+            output += text
+            yield text
 
-        text = response_message['content']
-
-        return text
+        print(output)
+        new_message = {
+            "role": "assistant",
+            "content": [
+                {f"type": "text", "text": f"{output}"}]}
+        self.messages.append(new_message)
 
     def image_and_prompt(self, image, text):
 
@@ -120,16 +130,26 @@ class ImageLLMLlamaCPP(ImageLLM):
         self.add_message(new_message)
 
         response = self.llama.chat.completions.create(
+            stream=True,
             model=self.model_name,
             messages=self.messages
         )
 
-        response_message = response['choices'][0]['message']
-        self.messages.append(response_message)
+        output = ""
+        for completion_chunk in response:
+            text = completion_chunk.choices[0].delta.content
+            if not text:
+                continue
+            output += text
+            yield text
 
-        text = response_message['content']
+        print(output)
+        new_message = {
+            "role": "assistant",
+            "content": [
+                {f"type": "text", "text": f"{output}"}]}
+        self.messages.append(new_message)
 
-        return text
 
     def simple_prompt(self, text):
 
@@ -146,7 +166,6 @@ class ImageLLMLlamaCPP(ImageLLM):
             messages=self.messages
         )
 
-        first_chunk = True
         output = ""
         for completion_chunk in response:
             text = completion_chunk.choices[0].delta.content
@@ -156,11 +175,11 @@ class ImageLLMLlamaCPP(ImageLLM):
             yield text
 
         print(output)
-        self.messages.append(output)
-
-        # text = response_message['content']
-
-        # return text
+        new_message = {
+            "role": "assistant",
+            "content": [
+                {f"type": "text", "text": f"{output}"}]}
+        self.messages.append(new_message)
 
     def capture_image_and_memorize(self):
         # self.reset_chat()
