@@ -129,10 +129,9 @@ class EmbodiedLLM:
         :return: int: trigger
         """
 
-        #name_detected = False
-        name_detected = True
-        #if any(x.lower() in text.lower() for x in self.names):
-        #    name_detected = True
+        name_detected = False
+        if any(x.lower() in text.lower() for x in self.names):
+           name_detected = True
 
         trigger = 0
 
@@ -239,9 +238,10 @@ class EmbodiedLLM:
                 text = self.recorder.text()
                 print(f"User: {text}")
                 trigger, name_detected = self.triggers(text)
+                name_detected = True  # FIXME: this is a hack for allowing wakeword instead of name detection
                 print(f"DEBUG: name detected: {name_detected}, trigger: {trigger}")
-                # if not name_detected:
-                #     continue
+                if not name_detected:
+                    continue
 
                 if name_detected:
                     if not self.keep_history:
@@ -312,48 +312,47 @@ class EmbodiedLLM:
                     self.tts.feed(res).play(fast_sentence_fragment=True, buffer_threshold_seconds=999, minimum_sentence_length=18)
                     
             elif mode == "search":
-                if name_detected:
-                    self.llm.reset_chat()
-                    text = f"Do you see {self.searched_str}?"
-                    if self.remote_camera:
-                        image = self.get_image()
-                        resit = self.llm.image_and_prompt(image, text)
+                self.llm.reset_chat()
+                text = f"Do you see {self.searched_str}?"
+                if self.remote_camera:
+                    image = self.get_image()
+                    resit = self.llm.image_and_prompt(image, text)
+                else:
+                    resit = self.llm.capture_image_and_prompt(text)
+                res = ""
+                for chunk in resit:
+                    res += chunk
+                while len(res) > 0 and not res[0].isalpha():
+                    res = res[1:]
+
+                if res.lower().startswith("yes"):
+                    # TODO: Found object, trigger action here
+                    print(f"DEBUG YES: {res}")
+                    idx = 3
+                    while idx < len(res) and not res[idx].isalpha():
+                        idx += 1
+                    if idx >= len(res):
+                        res = f"I found {self.searched_str}"
                     else:
-                        resit = self.llm.capture_image_and_prompt(text)
-                    res =""
-                    for chunk in resit:
-                        res += chunk
-                    while len(res) > 0 and not res[0].isalpha():
-                        res = res[1:]
-    
-                    if res.lower().startswith("yes"):
-                        # TODO: Found object, trigger action here
-                        print(f"DEBUG YES: {res}")
-                        idx = 3
-                        while idx < len(res) and not res[idx].isalpha():
-                            idx += 1
-                        if idx >= len(res):
-                            res = f"I found {self.searched_str}"
-                        else:
-                            res = res[idx:]
+                        res = res[idx:]
+                    self.tts.feed(res).play()
+                    self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
+                    mode = "chat"
+                    self.publish_zenoh_msg(TRIGGER_MSGS['Home_cmd'])
+                else:
+                    stop = False
+                    with self._lock:
+                        for buf_text in self._text_buffer:
+                            if "stop" in buf_text.lower():
+                                stop = True
+                        self._text_buffer = []
+                    if stop:
+                        res = f"Fine, I stop looking for {self.searched_str}."
                         self.tts.feed(res).play()
                         self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
                         mode = "chat"
                         self.publish_zenoh_msg(TRIGGER_MSGS['Home_cmd'])
-                    else:
-                        stop = False
-                        with self._lock:
-                            for buf_text in self._text_buffer:
-                                if "stop" in buf_text.lower():
-                                    stop = True
-                            self._text_buffer = []
-                        if stop:
-                            res = f"Fine, I stop looking for {self.searched_str}."
-                            self.tts.feed(res).play()
-                            self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
-                            mode = "chat"
-                            self.publish_zenoh_msg(TRIGGER_MSGS['Home_cmd'])
-                        print(f"DEBUG NO: {res}")
+                    print(f"DEBUG NO: {res}")
             iteration += 1
 
     def stop(self):
