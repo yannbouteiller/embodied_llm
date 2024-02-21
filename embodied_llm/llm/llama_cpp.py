@@ -12,7 +12,6 @@ from embodied_llm.llm.image_llm import ImageLLM
 import json
 import copy
 
-
 def display(img):
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     plt.imshow(rgb)
@@ -35,6 +34,13 @@ class ImageLLMLlamaCPP(ImageLLM):
 
         models_folder = Path(models_folder)
 
+        self.context = [
+            {
+                "role": "system", 
+                "content": f"You are Jarvis, a helpful robot. You are in the MIST Robotics Lab in Polytechnique Montreal. The pictures you receive are what you see in front of you. You must answer in 35 words or less."
+            },
+            ]
+
         self.model_name = model_name
         self.clip_name = clip_name
         self.models_folder = models_folder
@@ -48,7 +54,7 @@ class ImageLLMLlamaCPP(ImageLLM):
         path_model = mp / self.model_name
 
         self.messages = None
-        self.max_history = 20
+        self.max_history = 10 * 2 + 1  # must be odd to keep the parity  
         self.reset_chat()
 
         if not path_clip.exists():
@@ -60,47 +66,20 @@ class ImageLLMLlamaCPP(ImageLLM):
 
         self.llama = openai.OpenAI(base_url="http://localhost:8000/v1", api_key="sk-xxx")
 
-
     def stop(self):
         pass
 
     def reset_chat(self):
         # self.messages = [{"role": "system", "content": f"You are Jarvis, a helpful robot. You are in the MIST Lab at Polytechnique Montreal.  You answer clearly, politely, and concisely."}]
-        self.messages = [
-            {
-                "role": "system", 
-                "content": f"You are Jarvis, a helpful robot. You are in the MIST Robotics Lab in Polytechnique Montreal. Always answer consicely. The pictures you receive are what you see in front of you."},
-            {
-                "role": "user",
-                "content": "What is your name?"
-            },
-            {
-                "role": "assistant",
-                "content": "My name is Jarvis"
-            },
-            {
-                "role": "user",
-                "content": "What is your role?"
-            },
-            {
-                "role": "assistant",
-                "content": "I am a helpful robot assistant. I can explore and look for objects and answer questions."
-            },
-            {
-                "role": "user",
-                "content": "Where are you?"
-            },
-            {
-                "role": "assistant",
-                "content": "I am in Polytechnique Montreal, in the MIST Lab."
-            }
-            ]
+        self.messages = copy.deepcopy(self.context)
 
     def clip_history(self):
-        if len(self.messages) > self.max_history + 1:
-            context = self.messages[0]
-            hist = self.messages[:self.max_history]
-            self.messages = [context] + hist
+        if len(self.messages) > self.max_history + len(self.context):
+            context = copy.deepcopy(self.context)
+            hist = self.messages[-self.max_history:]
+            self.messages = context + hist
+            assert len(self.messages) == len(self.context) + self.max_history
+            assert self.messages[len(self.context)]['role'] == 'user'
 
     def print_messages_no_image(self):
         for message in self.messages:
@@ -114,6 +93,16 @@ class ImageLLMLlamaCPP(ImageLLM):
     def add_message(self, message):
         self.messages.append(message)
         self.clip_history()
+
+    def clean_history(self):
+        for message in self.messages:
+            if isinstance(message['content'], list):
+                img_idx = None
+                for i, content in enumerate(message['content']):
+                    if content['type'] == "image_url":
+                        img_idx = i 
+                if img_idx is not None:
+                    message['content'].pop(img_idx)
 
     def capture_image_and_prompt(self, text):
 
@@ -132,7 +121,7 @@ class ImageLLMLlamaCPP(ImageLLM):
                 "content": [
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
                 {f"type": "text",
-                 "text": f"{text}"}]}
+                 "text": f"(The above picture is what you see. Do not in any circumstance refer to it as being an image.) {text}"}]}
 
         self.add_message(new_message)
 
@@ -144,13 +133,14 @@ class ImageLLMLlamaCPP(ImageLLM):
             messages=self.messages
         )
 
+        self.clean_history()
+
         output = ""
         for completion_chunk in response:
             text = completion_chunk.choices[0].delta.content
             if not text:
                 continue
             output += text
-            print(text)
             yield text
 
         print(output)
@@ -168,7 +158,7 @@ class ImageLLMLlamaCPP(ImageLLM):
             "content": [
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
                 {f"type": "text",
-                 "text": f"{text}"}]}
+                 "text": f"(The above picture is what you see. Do not in any circumstance refer to it as being an image. Your answer should be concise.) {text}"}]}
 
         self.add_message(new_message)
 
@@ -179,6 +169,8 @@ class ImageLLMLlamaCPP(ImageLLM):
             model=self.model_name,
             messages=self.messages
         )
+        
+        self.clean_history()
 
         output = ""
         for completion_chunk in response:
@@ -186,7 +178,6 @@ class ImageLLMLlamaCPP(ImageLLM):
             if not text:
                 continue
             output += text
-            print(text)
             yield text
 
         print(output)
@@ -219,7 +210,6 @@ class ImageLLMLlamaCPP(ImageLLM):
             if not text:
                 continue
             output += text
-            print(text)
             yield text
 
         print(output)
