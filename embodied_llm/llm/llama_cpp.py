@@ -9,6 +9,8 @@ from matplotlib import pyplot as plt
 import openai
 
 from embodied_llm.llm.image_llm import ImageLLM
+import json
+import copy
 
 
 def display(img):
@@ -46,7 +48,7 @@ class ImageLLMLlamaCPP(ImageLLM):
         path_model = mp / self.model_name
 
         self.messages = None
-        self.max_history = 9
+        self.max_history = 20
         self.reset_chat()
 
         if not path_clip.exists():
@@ -63,13 +65,51 @@ class ImageLLMLlamaCPP(ImageLLM):
         pass
 
     def reset_chat(self):
-        self.messages = [{"role": "system", "content": f"You are Jarvis, a helpful robot. You are in the MIST Lab at Polytechnique Montreal.  You answer clearly, politely, and concisely."}]
+        # self.messages = [{"role": "system", "content": f"You are Jarvis, a helpful robot. You are in the MIST Lab at Polytechnique Montreal.  You answer clearly, politely, and concisely."}]
+        self.messages = [
+            {
+                "role": "system", 
+                "content": f"You are Jarvis, a helpful robot. You are in the MIST Robotics Lab in Polytechnique Montreal. Always answer consicely. The pictures you receive are what you see in front of you."},
+            {
+                "role": "user",
+                "content": "What is your name?"
+            },
+            {
+                "role": "assistant",
+                "content": "My name is Jarvis"
+            },
+            {
+                "role": "user",
+                "content": "What is your role?"
+            },
+            {
+                "role": "assistant",
+                "content": "I am a helpful robot assistant. I can explore and look for objects and answer questions."
+            },
+            {
+                "role": "user",
+                "content": "Where are you?"
+            },
+            {
+                "role": "assistant",
+                "content": "I am in Polytechnique Montreal, in the MIST Lab."
+            }
+            ]
 
     def clip_history(self):
         if len(self.messages) > self.max_history + 1:
             context = self.messages[0]
             hist = self.messages[:self.max_history]
             self.messages = [context] + hist
+
+    def print_messages_no_image(self):
+        for message in self.messages:
+            printable = copy.deepcopy(message)
+            if isinstance(printable['content'], list):
+                for content in printable['content']:
+                    if content['type'] == "image_url":
+                        content['image_url'] = "string"
+            print(json.dumps(printable, indent=4))
 
     def add_message(self, message):
         self.messages.append(message)
@@ -90,10 +130,13 @@ class ImageLLMLlamaCPP(ImageLLM):
         new_message = {
                 "role": "user",
                 "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                    {f"type": "text", "text": f"The picture is what you see. Do not in any circumstance refer it as being an image. {text}"}]}
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                {f"type": "text",
+                 "text": f"{text}"}]}
 
         self.add_message(new_message)
+
+        # self.print_messages_no_image()
 
         response = self.llama.chat.completions.create(
             stream=True,
@@ -107,13 +150,13 @@ class ImageLLMLlamaCPP(ImageLLM):
             if not text:
                 continue
             output += text
+            print(text)
             yield text
 
         print(output)
         new_message = {
             "role": "assistant",
-            "content": [
-                {f"type": "text", "text": f"{output}"}]}
+            "content": f"{output}"}
         self.messages.append(new_message)
 
     def image_and_prompt(self, image, text):
@@ -125,9 +168,11 @@ class ImageLLMLlamaCPP(ImageLLM):
             "content": [
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
                 {f"type": "text",
-                 "text": f"(The above picture is what you see. Do not in any circumstance refer it as bein an image.) {text}"}]}
+                 "text": f"{text}"}]}
 
         self.add_message(new_message)
+
+        # self.print_messages_no_image()
 
         response = self.llama.chat.completions.create(
             stream=True,
@@ -141,13 +186,13 @@ class ImageLLMLlamaCPP(ImageLLM):
             if not text:
                 continue
             output += text
+            print(text)
             yield text
 
         print(output)
         new_message = {
             "role": "assistant",
-            "content": [
-                {f"type": "text", "text": f"{output}"}]}
+            "content": f"{output}"}
         self.messages.append(new_message)
 
 
@@ -160,6 +205,8 @@ class ImageLLMLlamaCPP(ImageLLM):
 
         self.add_message(new_message)
 
+        # self.print_messages_no_image()
+
         response = self.llama.chat.completions.create(
             model=self.model_name,
             stream=True,
@@ -172,13 +219,13 @@ class ImageLLMLlamaCPP(ImageLLM):
             if not text:
                 continue
             output += text
+            print(text)
             yield text
 
         print(output)
         new_message = {
             "role": "assistant",
-            "content": [
-                {f"type": "text", "text": f"{output}"}]}
+            "content": f"{output}"}
         self.messages.append(new_message)
 
     def capture_image_and_memorize(self):

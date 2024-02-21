@@ -49,7 +49,7 @@ class EmbodiedLLM:
         self.int_id = zenoh_id
         self.pipline = pipeline
         self.names = names
-        self.keep_history = False
+        self.keep_history = True
         def activation_callback():
             print("Wake word detected")
             #print("\a")
@@ -58,7 +58,7 @@ class EmbodiedLLM:
         def timeout():
             print("No speech detected")
 
-        self.recorder = AudioToTextRecorder(model="tiny.en", language="en",wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback,wake_words_sensitivity=0.7,input_device_index=input_device, spinner=True)
+        self.recorder = AudioToTextRecorder(model="tiny.en", language="en",wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback,wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False)
 
         if pipeline == "huggingface":
             print(f"DEBUG: using hugging face pipeline")
@@ -308,8 +308,8 @@ class EmbodiedLLM:
                     else:
                         res = self.llm.simple_prompt(text)
 
-                    #print(f"Laika: {res}")
-                    self.tts.feed(res).play()
+                    # print(f"Laika: {r}")
+                    self.tts.feed(res).play(fast_sentence_fragment=True, buffer_threshold_seconds=999, minimum_sentence_length=18)
                     
             elif mode == "search":
                 if name_detected:
