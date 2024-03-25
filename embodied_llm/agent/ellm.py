@@ -8,12 +8,11 @@ import time
 
 import cv2
 from RealtimeSTT import AudioToTextRecorder
-import RealtimeSTT
+# import RealtimeSTT
 import zenoh
 import numpy as np
 
-#from embodied_llm.asr.real_time_stt import AudioToTextRecorder
-
+# from embodied_llm.asr.real_time_stt import AudioToTextRecorder
 
 
 TRIGGER_MSGS = {
@@ -42,23 +41,31 @@ class EmbodiedLLM:
                  zenoh_topic_images="mist/images",
                  zenoh_id=1,
                  remote_camera=False,
-                 send_commands=False):
-        global ar
+                 send_commands=False,
+                 language="en"):
+        # global ar
 
+        self.language = language
         self.send_commands = send_commands
         self.int_id = zenoh_id
         self.pipline = pipeline
         self.names = names
         self.keep_history = False
+
         def activation_callback():
             print("Wake word detected")
             #print("\a")
             #self.stop_listening()
-            self.tts.feed("Yes?").play()
+            yes_str = "Yes?" if self.language == "en" else "Oui?"
+            self.tts.feed(yes_str).play()
+
         def timeout():
             print("No speech detected")
 
-        self.recorder = AudioToTextRecorder(model="tiny.en", language="en", wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback,wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False)
+        if self.language == "en":
+            self.recorder = AudioToTextRecorder(model="tiny.en", language="en", wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback, wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False)
+        else:
+            self.recorder = AudioToTextRecorder(model="tiny", language="fr", wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback, wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False)
 
         if pipeline == "huggingface":
             print(f"DEBUG: using hugging face pipeline")
@@ -79,7 +86,8 @@ class EmbodiedLLM:
 
         from RealtimeTTS import TextToAudioStream
         from embodied_llm.tts.piper import PiperEngine
-        self.tts_engine = PiperEngine(models_folder=models_folder, voice='en_GB-alba-medium')
+        voice = 'en_GB-alba-medium' if self.language == "en" else 'fr_FR-siwis-medium'
+        self.tts_engine = PiperEngine(models_folder=models_folder, voice=voice)
         self.tts = TextToAudioStream(self.tts_engine, log_characters=False)
 
         self.remote_camera = remote_camera
@@ -91,7 +99,9 @@ class EmbodiedLLM:
         self.zenoh_sub = self.zenoh_session.declare_subscriber(zenoh_topic_images, self.receive_zenoh_image)
 
         time.sleep(4.0)
-        self.tts.feed("I'm ready.").play(fast_sentence_fragment=True, buffer_threshold_seconds=999, minimum_sentence_length=18)
+
+        ready_str = "I'm ready." if self.language == "en" else "Bonjour."
+        self.tts.feed(ready_str).play(fast_sentence_fragment=True, buffer_threshold_seconds=999, minimum_sentence_length=18)
 
     def receive_zenoh_image(self, msg):
         b_string = msg.payload
@@ -137,12 +147,12 @@ class EmbodiedLLM:
 
         while True:
 
-            matches = ["bye"]
+            matches = ["bye"] if self.language == "en" else ["au revoir"]
             if any(x.lower() in text.lower() for x in matches):
                 trigger = 1
                 break
 
-            matches = ["memoriz", "you", "see"]
+            matches = ["memoriz", "you", "see"] if self.language == "en" else ["memorise", "tu", "voi"]
             if all(x.lower() in text.lower() for x in matches) and self.pipline == "huggingface":
                 trigger = 2
                 break
@@ -151,19 +161,19 @@ class EmbodiedLLM:
             if any(x.lower() in text.lower() for x in matches) and self.pipline == "huggingface":
                 trigger = 3
 
-            matches = ["look for", "search"]
+            matches = ["look for"] if self.language == "en" else ["cherche"]
             if any(x.lower() in text.lower() for x in matches):
                 trigger = 4
 
-            matches = ["sit down", "sits down"]
+            matches = ["sit down", "sits down"] if self.language == "en" else ["assi", "couch"]
             if any(x.lower() in text.lower() for x in matches):
                 trigger = 5
 
-            matches = ["stand up", "stands up"]
+            matches = ["stand up", "stands up"] if self.language == "en" else ["debout"]
             if any(x.lower() in text.lower() for x in matches):
                 trigger = 6
 
-            matches = ["describe", "see"]
+            matches = ["describe", "see"] if self.language == "en" else ["decri", "vois"]
             if any(x.lower() in text.lower() for x in matches) or self.pipline == "huggingface":
                 trigger = 7
 
@@ -171,12 +181,12 @@ class EmbodiedLLM:
             if all(x.lower() in text.lower() for x in matches):
                 trigger = 8
 
-            matches = ["history"]
+            matches = ["history"] if self.language == "en" else ["historique"]
             if any(x.lower() in text.lower() for x in matches):
-                matches = ["keep", "track"]
+                matches = ["keep", "track"] if self.language == "en" else ["retiens"]
                 if any(x.lower() in text.lower() for x in matches):
                     trigger = 9
-                matches = ["discard", "do not", "don't", "stop"]
+                matches = ["discard", "do not", "don't", "stop"] if self.language == "en" else ["oubli"]
                 if any(x.lower() in text.lower() for x in matches):
                     trigger = 10
 
@@ -249,7 +259,8 @@ class EmbodiedLLM:
 
                     if trigger == 1:
                         # User said "Bye"
-                        self.tts.feed("Goodbye.").play()
+                        bye_str = "Goodbye." if self.language == "en" else "Au revoir."
+                        self.tts.feed(bye_str).play()
                         self.publish_zenoh_msg(TRIGGER_MSGS['Turnoff_cmd'])
                         break
                     elif trigger == 2:
@@ -268,13 +279,13 @@ class EmbodiedLLM:
                     elif trigger == 4:
                         # User asked to look for something
                         low = text.lower()
-                        idx = low.rindex("look for") + 8
+                        idx = low.rindex("look for") + 8 if self.language == "en" else low.rindex("cherche") + 7
                         while idx < len(low) and not low[idx].isalpha():
                             idx += 1
                         low = low[idx:]
                         low = re.sub('[^a-z ]', '', low)
                         self.searched_str = low
-                        res = f"OK, I will look for {self.searched_str}."
+                        res = f"OK, I will look for {self.searched_str}." if self.language == "en" else f"D'accord, je vais chercher {self.searched_str}."
                         mode = "search"
                         self.listen()
                         self.publish_zenoh_msg(TRIGGER_MSGS['Explore_cmd'])
@@ -313,7 +324,7 @@ class EmbodiedLLM:
                     
             elif mode == "search":
                 self.llm.reset_chat()
-                text = f"Do you see {self.searched_str}?"
+                text = f"Do you see {self.searched_str}?" if self.language == "en" else f"Est-ce que tu vois {self.searched_str}?"
                 if self.remote_camera:
                     image = self.get_image()
                     resit = self.llm.image_and_prompt(image, text)
@@ -325,14 +336,15 @@ class EmbodiedLLM:
                 while len(res) > 0 and not res[0].isalpha():
                     res = res[1:]
 
-                if res.lower().startswith("yes"):
+                yes_str = "yes" if self.language == "en" else "oui"
+                if res.lower().startswith(yes_str):
                     # TODO: Found object, trigger action here
                     print(f"DEBUG YES: {res}")
                     idx = 3
                     while idx < len(res) and not res[idx].isalpha():
                         idx += 1
                     if idx >= len(res):
-                        res = f"I found {self.searched_str}"
+                        res = f"I found {self.searched_str}" if self.language == "en" else f"J'ai trouvé {self.searched_str}"
                     else:
                         res = res[idx:]
                     self.tts.feed(res).play()
@@ -347,7 +359,7 @@ class EmbodiedLLM:
                                 stop = True
                         self._text_buffer = []
                     if stop:
-                        res = f"Fine, I stop looking for {self.searched_str}."
+                        res = f"Fine, I stop looking for {self.searched_str}." if self.language == "en" else f"D'accord, j'arrête de chercher {self.searched_str}."
                         self.tts.feed(res).play()
                         self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
                         mode = "chat"
@@ -370,13 +382,14 @@ def main(args):
     print(f"REMOTE: {remote}")
     microphone = args.microphone
     camera = args.camera
+    language = args.language
     max_iterations = args.max_iterations
     pipeline = args.pipeline
     models_folder = args.models_folder
     if models_folder is None:
         models_folder = Path.home() / "ellm"
 
-    ellm = EmbodiedLLM(input_device=microphone, models_folder=models_folder, pipeline=pipeline, camera_device=camera, remote_camera=remote, send_commands=send_commands)
+    ellm = EmbodiedLLM(input_device=microphone, models_folder=models_folder, pipeline=pipeline, camera_device=camera, remote_camera=remote, send_commands=send_commands, language=language)
     ellm.loop(max_iterations=max_iterations)
     ellm.stop()
 
@@ -390,6 +403,7 @@ if __name__ == "__main__":
     parser.add_argument('--pipeline', type=str, default="llamacpp", help='one of: huggingface, llamacpp')
     parser.add_argument("--remote", help="remote camera", action="store_true")
     parser.add_argument("--send-commands", help="send zenoh commands", action="store_true")
+    parser.add_argument('--language', type=str, default='fr', help="one of ['en', 'fr']")
     arguments = parser.parse_args()
 
     main(arguments)

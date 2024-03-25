@@ -3,7 +3,7 @@ from pathlib import Path
 import base64
 
 import cv2
-from PIL import Image
+# from PIL import Image
 from matplotlib import pyplot as plt
 
 import openai
@@ -26,20 +26,35 @@ class ImageLLMLlamaCPP(ImageLLM):
                  clip_name="mmproj-model-f16.gguf",
                  camera_device=-1,
                  main_gpu=0,
-                 n_gpu_layers=-1
+                 n_gpu_layers=-1,
+                 language="en"
                  ):
 
-        #from llama_cpp import Llama
-        #from llama_cpp.llama_chat_format import Llava15ChatHandler
+        language = language.lower()
+        self.language = language
+
+        supported = ["en", "fr"]
+        if self.language not in supported:
+            raise RuntimeError(f"Unsupported language designation: {self.language}. Supported designations are {supported}")
+
+        # from llama_cpp import Llama
+        # from llama_cpp.llama_chat_format import Llava15ChatHandler
 
         models_folder = Path(models_folder)
+
+        init_str = \
+            f"You are Jarvis, a helpful robot. You are in the MIST Robotics Lab in Polytechnique Montreal.\
+            The pictures you receive are what you see in front of you. You must answer in 35 words or less." \
+            if self.language == "en" else \
+            f"Tu es Jarvis, un robot utile. Tu es au MIST, le laboratoire de robotique de Polytechnique Montreal.\
+            Les images que tu recois sont ce que tu vois. Tes reponses ne doivent pas depasser 35 mots."
 
         self.context = [
             {
                 "role": "system", 
-                "content": f"You are Jarvis, a helpful robot. You are in the MIST Robotics Lab in Polytechnique Montreal. The pictures you receive are what you see in front of you. You must answer in 35 words or less."
+                "content": init_str
             },
-            ]
+        ]
 
         self.model_name = model_name
         self.clip_name = clip_name
@@ -105,7 +120,6 @@ class ImageLLMLlamaCPP(ImageLLM):
                     message['content'].pop(img_idx)
 
     def capture_image_and_prompt(self, text):
-
         self.cam.grab()
         ret, shot = self.cam.read()
         if ret and shot is not None:
@@ -116,12 +130,17 @@ class ImageLLMLlamaCPP(ImageLLM):
         else:
             raise RuntimeError("Something is wrong with the camera")
 
+        text_str = \
+            f"(The above picture is what you see. Do not in any circumstance refer to it as being an image.) {text}" \
+            if self.language == "en" else \
+            f"(L'image ci-dessus est ce que tu vois. Ne mentionne en aucun cas le fait que ce soit une image.) {text}"
+
         new_message = {
                 "role": "user",
                 "content": [
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                {f"type": "text",
-                 "text": f"(The above picture is what you see. Do not in any circumstance refer to it as being an image.) {text}"}]}
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+                    {f"type": "text",
+                     "text": text_str}]}
 
         self.add_message(new_message)
 
@@ -153,12 +172,17 @@ class ImageLLMLlamaCPP(ImageLLM):
 
         base64_image = base64.b64encode(cv2.imencode('.png', image)[1]).decode('utf-8')
 
+        text_str = \
+            f"(The above picture is what you see. Do not in any circumstance refer to it as being an image.) {text}" \
+            if self.language == "en" else \
+            f"(L'image ci-dessus est ce que tu vois. Ne mentionne en aucun cas le fait que ce soit une image.) {text}"
+
         new_message = {
             "role": "user",
             "content": [
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
                 {f"type": "text",
-                 "text": f"(The above picture is what you see. Do not in any circumstance refer to it as being an image. Your answer should be concise.) {text}"}]}
+                 "text": text_str}]}
 
         self.add_message(new_message)
 
@@ -185,7 +209,6 @@ class ImageLLMLlamaCPP(ImageLLM):
             "role": "assistant",
             "content": f"{output}"}
         self.messages.append(new_message)
-
 
     def simple_prompt(self, text):
 
