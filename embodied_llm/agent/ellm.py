@@ -86,7 +86,7 @@ class EmbodiedLLM:
 
         from RealtimeTTS import TextToAudioStream
         from embodied_llm.tts.piper import PiperEngine
-        voice = 'en_GB-alba-medium' if self.language == "en" else 'fr_FR-siwis-medium'
+        voice = 'en_GB-alba-medium' if self.language == "en" else 'fr_FR-siwis-medium'  # 'fr_FR-upmc-medium'
         self.tts_engine = PiperEngine(models_folder=models_folder, voice=voice)
         self.tts = TextToAudioStream(self.tts_engine, log_characters=False)
 
@@ -403,7 +403,7 @@ if __name__ == "__main__":
     parser.add_argument('--pipeline', type=str, default="llamacpp", help='one of: huggingface, llamacpp')
     parser.add_argument("--remote", help="remote camera", action="store_true")
     parser.add_argument("--send-commands", help="send zenoh commands", action="store_true")
-    parser.add_argument('--language', type=str, default='fr', help="one of ['en', 'fr']")
+    parser.add_argument('--language', type=str, default='en', help="one of ['en', 'fr']")
     arguments = parser.parse_args()
 
     main(arguments)
