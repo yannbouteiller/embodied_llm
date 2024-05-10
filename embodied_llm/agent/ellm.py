@@ -63,6 +63,7 @@ class EmbodiedLLM:
             print("No speech detected")
 
         if self.language == "en":
+            print(f"DEBUG: using ENGLISH pipeline")
             self.recorder = AudioToTextRecorder(model="tiny.en", language="en", wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback, wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False)
         else:
             self.recorder = AudioToTextRecorder(model="tiny", language="fr", wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback, wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False)
@@ -208,6 +209,7 @@ class EmbodiedLLM:
             self._listening = True
         cc = True
         while cc:
+            print(f"DEBUG: listening...")
             text = self.recorder.text()
             print(f"DEBUG: listening: {text}")
             with self._lock:
