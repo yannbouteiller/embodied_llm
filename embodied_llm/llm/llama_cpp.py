@@ -22,7 +22,7 @@ def display(img):
 class ImageLLMLlamaCPP(ImageLLM):
     def __init__(self,
                  models_folder,
-                 model_name="ggml-model-q4_k.gguf",
+                 model_name="ggml-model-q5_k.gguf",
                  clip_name="mmproj-model-f16.gguf",
                  camera_device=-1,
                  main_gpu=0,

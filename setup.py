@@ -20,7 +20,21 @@ setup(
     url='https://github.com/yannbouteiller/embodied-LLM',
     download_url='',
     keywords=['LLM', 'embodied', 'vision', 'speech', 'ASR', 'TTS', 'STT', 'AI', 'chatbot'],
-    install_requires=['transformers'],
+    install_requires=[
+        'uvicorn',
+        'starlette',
+        'fastapi',
+        'sse_starlette',
+        'starlette_context',
+        'pydantic_settings',
+        'eclipse-zenoh',
+        'opencv-python',
+        'transformers',
+        'llama-cpp-python',
+        'piper-tts',
+        # 'RealtimeTTS',
+        # 'RealtimeSTT'
+    ],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
