@@ -50,7 +50,7 @@ class EmbodiedLLM:
         self.int_id = zenoh_id
         self.pipline = pipeline
         self.names = names
-        self.keep_history = False
+        self.keep_history = True
 
         def activation_callback():
             print("Wake word detected")

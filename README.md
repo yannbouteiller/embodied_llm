@@ -10,35 +10,30 @@ USING PYTHON 3.9 AND NOTHING ELSE IS IMPORTANT:
 ```bash
 conda create -n transformers python=3.9 -y
 conda activate transformers
+conda install -c conda-forge gxx -y
+conda install make cmake -y
+conda install -c conda-forge libstdcxx-ng -y
 # sudo apt install build-essential gcc make cmake
 # conda install -c conda-forge gxx -y
 # conda install make cmake -y
 # conda install -c conda-forge gcc
-conda install -c conda-forge libstdcxx-ng
 ```
 
-Needed to install pyaudio dependencies:
 ```bash
 conda install pyaudio -y
-conda uninstall pyaudio -y
+conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia -y
 ```
 
-These libraries have absurd dependency management, install them first:
+These libraries have absurd dependency management, install them with no-deps:
 ```bash
-pip install RealTimeSTT
-pip install RealTimeTTS
+pip install RealTimeSTT --no-deps
+pip install RealTimeTTS --no-deps
+pip install -r requirements.txt
 ```
 
 Install remaining dependencies:
 ```bash
 pip install -e .
-```
-
-Fix pyaudio:
-```bash
-pip uninstall pyaudio
-conda uninstall pyaudio
-conda install pyaudio
 ```
 
 ### Download files:
@@ -50,12 +45,31 @@ wget https://huggingface.co/mys/ggml_bakllava-1/resolve/main/ggml-model-q5_k.ggu
 wget https://huggingface.co/mys/ggml_bakllava-1/resolve/main/mmproj-model-f16.gguf
 wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_GB/alba/medium/en_GB-alba-medium.onnx
 wget https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_GB/alba/medium/en_GB-alba-medium.onnx.json
+wget https://huggingface.co/QuantFactory/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf
+```
+
+And adapt the content of `server_config.txt` to your own path.
+
+(Note: you can choose other models and adapt `server_config.txt` accordingly)
+
+
+## Launch server:
+
+Adapt:
+
+```bash
+conda activate transformers
+
+python3 -m llama_cpp.server --config_file ~/Desktop/git/embodied_llm/server_config.txt
+
+# For reference, we use to do:
+# python3 -m llama_cpp.server --model ~/ellm/ggml-model-q5_k.gguf --clip_model_path ~/ellm/mmproj-model-f16.gguf --chat_format llava-1-5 --n_threads 4 --n_gpu_layers -1 --n_ctx 8192
 ```
 
 ### Usage:
 
 ```bash
-find ~/. -name "libcudnn_ops_infer.so.8"
+sudo find ~/. -name "libcudnn_ops_infer.so.8"
 ```
 
 You should get an output like:
@@ -69,40 +83,5 @@ You should get an output like:
 
 To launch ellm, replace by the equivalent on your system in the following command:
 ```bash
-LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/yann/./miniconda3/envs/transformers/lib/python3.9/site-packages/nvidia/cudnn/lib python embodied_llm/agent/ellm.py
-```
-
-
-### Other tested stuff:
-
-CUDA:
-```bash
-wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin
-sudo mv cuda-ubuntu2204.pin /etc/apt/preferences.d/cuda-repository-pin-600
-wget https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda-repo-ubuntu2204-11-8-local_11.8.0-520.61.05-1_amd64.deb
-sudo dpkg -i cuda-repo-ubuntu2204-11-8-local_11.8.0-520.61.05-1_amd64.deb
-sudo cp /var/cuda-repo-ubuntu2204-11-8-local/cuda-*-keyring.gpg /usr/share/keyrings/
-sudo apt-get update
-sudo apt-get -y install cuda
-```
-
-CuDNN: `Download cuDNN v8.7.0 (November 28th, 2022), for CUDA 11.x` [here](https://developer.nvidia.com/rdp/cudnn-archive)
-```bash
-sudo dpkg -i cudnn-local-repo-ubuntu2204-8.7.0.84_1.0-1_amd64.deb
-```
-
-```bash
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
-# pip install nvidia-cublas-cu11 nvidia-cudnn-cu11
-```
-
-```bash
-sudo apt install nvidia-cuda-toolkit
-```
-
-## Launch server:
-
-```bash
-conda activate transformers
-python3 -m llama_cpp.server --model ~/ellm/ggml-model-q5_k.gguf --clip_model_path ~/ellm/mmproj-model-f16.gguf --chat_format llava-1-5 --n_threads 4 --n_gpu_layers -1 --n_ctx 8192
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/yann/./miniconda3/envs/transformers/lib/python3.9/site-packages/torch/lib python embodied_llm/agent/ellm.py
 ```

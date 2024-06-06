@@ -22,7 +22,8 @@ def display(img):
 class ImageLLMLlamaCPP(ImageLLM):
     def __init__(self,
                  models_folder,
-                 model_name="ggml-model-q5_k.gguf",
+                 language_model_name="Meta-Llama-3-8B-Instruct-Q4_K_M.gguf",
+                 visual_model_name="ggml-model-q5_k.gguf",
                  clip_name="mmproj-model-f16.gguf",
                  camera_device=-1,
                  main_gpu=0,
@@ -43,8 +44,7 @@ class ImageLLMLlamaCPP(ImageLLM):
         models_folder = Path(models_folder)
 
         init_str = \
-            f"You are Jarvis, a helpful robot. You are in the MIST Robotics Lab in Polytechnique Montreal.\
-            The pictures you receive are what you see in front of you. You must answer in 35 words or less." \
+            f"You are Jarvis, a helpful assistant. Your answers must never exceed 35 words." \
             if self.language == "en" else \
             f"Tu es Jarvis, un robot utile. Tu es au MIST, le laboratoire de robotique de Polytechnique Montreal.\
             Les images que tu recois sont ce que tu vois. Tes reponses ne doivent pas depasser 35 mots."
@@ -53,10 +53,11 @@ class ImageLLMLlamaCPP(ImageLLM):
             {
                 "role": "system", 
                 "content": init_str
-            },
+            }
         ]
 
-        self.model_name = model_name
+        self.language_model_name = language_model_name
+        self.visual_model_name = visual_model_name
         self.clip_name = clip_name
         self.models_folder = models_folder
         self.camera_device = camera_device
@@ -66,16 +67,19 @@ class ImageLLMLlamaCPP(ImageLLM):
 
         mp = Path(self.models_folder)
         path_clip = mp / self.clip_name
-        path_model = mp / self.model_name
+        path_visual_model = mp / self.visual_model_name
+        path_language_model = mp / self.language_model_name
 
-        self.messages = None
-        self.max_history = 10 * 2 + 1  # must be odd to keep the parity  
+        self.messages_llama = None
+        self.max_history = 20 * 2 + 1  # must be odd to keep the parity
         self.reset_chat()
 
         if not path_clip.exists():
             raise FileNotFoundError(path_clip)
-        if not path_model.exists():
-            raise FileNotFoundError(path_model)
+        if not path_visual_model.exists():
+            raise FileNotFoundError(path_visual_model)
+        if not path_language_model.exists():
+            raise FileNotFoundError(path_language_model)
 
         #chat_handler = Llava15ChatHandler(clip_model_path=str(path_clip))
 
@@ -85,39 +89,56 @@ class ImageLLMLlamaCPP(ImageLLM):
         pass
 
     def reset_chat(self):
-        # self.messages = [{"role": "system", "content": f"You are Jarvis, a helpful robot. You are in the MIST Lab at Polytechnique Montreal.  You answer clearly, politely, and concisely."}]
-        self.messages = copy.deepcopy(self.context)
+        self.messages_llama = copy.deepcopy(self.context)
 
     def clip_history(self):
-        if len(self.messages) > self.max_history + len(self.context):
+        if len(self.messages_llama) > self.max_history + len(self.context):
             context = copy.deepcopy(self.context)
-            hist = self.messages[-self.max_history:]
-            self.messages = context + hist
-            assert len(self.messages) == len(self.context) + self.max_history
-            assert self.messages[len(self.context)]['role'] == 'user'
+            hist = self.messages_llama[-self.max_history:]
+            self.messages_llama = context + hist
+            assert len(self.messages_llama) == len(self.context) + self.max_history
+            assert self.messages_llama[len(self.context)]['role'] == 'user'
 
     def print_messages_no_image(self):
-        for message in self.messages:
+        for message in self.messages_llama:
             printable = copy.deepcopy(message)
-            if isinstance(printable['content'], list):
-                for content in printable['content']:
-                    if content['type'] == "image_url":
-                        content['image_url'] = "string"
+            # if isinstance(printable['content'], list):
+            #     for content in printable['content']:
+            #         if content['type'] == "image_url":
+            #             content['image_url'] = "string"
+            # print(message)
             print(json.dumps(printable, indent=4))
 
     def add_message(self, message):
-        self.messages.append(message)
+        self.messages_llama.append(message)
         self.clip_history()
 
-    def clean_history(self):
-        for message in self.messages:
-            if isinstance(message['content'], list):
-                img_idx = None
-                for i, content in enumerate(message['content']):
-                    if content['type'] == "image_url":
-                        img_idx = i 
-                if img_idx is not None:
-                    message['content'].pop(img_idx)
+    # def clean_history(self):
+    #     for message in self.messages_llava:
+    #         if isinstance(message['content'], list):
+    #             img_idx = None
+    #             for i, content in enumerate(message['content']):
+    #                 if content['type'] == "image_url":
+    #                     img_idx = i
+    #             if img_idx is not None:
+    #                 message['content'].pop(img_idx)
+
+    def add_llava_message(self, llava_message):
+
+        llava_history = copy.deepcopy(self.messages_llama)
+        # convert llama_history into llava_history
+        for message in llava_history:
+            if message['role'] == "user":
+                text = message['content']
+                message['content'] = [{f"type": "text", "text": text}]
+        llava_history.append(llava_message)
+
+        # convert message into llama format and add to llama history
+        llama_message = copy.deepcopy(llava_message)
+        llama_message["content"] = llava_message["content"][-1]["text"]
+        self.add_message(llama_message)
+
+        return llava_history
 
     def capture_image_and_prompt(self, text):
         self.cam.grab()
@@ -142,17 +163,17 @@ class ImageLLMLlamaCPP(ImageLLM):
                     {f"type": "text",
                      "text": text_str}]}
 
-        self.add_message(new_message)
+        llava_history = self.add_llava_message(new_message)
 
         # self.print_messages_no_image()
 
         response = self.llama.chat.completions.create(
             stream=True,
-            model=self.model_name,
-            messages=self.messages
+            model=self.visual_model_name,
+            messages=llava_history
         )
 
-        self.clean_history()
+        # self.clean_history()
 
         output = ""
         for completion_chunk in response:
@@ -166,7 +187,7 @@ class ImageLLMLlamaCPP(ImageLLM):
         new_message = {
             "role": "assistant",
             "content": f"{output}"}
-        self.messages.append(new_message)
+        self.messages_llama.append(new_message)
 
     def image_and_prompt(self, image, text):
 
@@ -184,17 +205,17 @@ class ImageLLMLlamaCPP(ImageLLM):
                 {f"type": "text",
                  "text": text_str}]}
 
-        self.add_message(new_message)
+        llava_history = self.add_llava_message(new_message)
 
         # self.print_messages_no_image()
 
         response = self.llama.chat.completions.create(
             stream=True,
-            model=self.model_name,
-            messages=self.messages
+            model=self.visual_model_name,
+            messages=llava_history
         )
         
-        self.clean_history()
+        # self.clean_history()
 
         output = ""
         for completion_chunk in response:
@@ -208,23 +229,23 @@ class ImageLLMLlamaCPP(ImageLLM):
         new_message = {
             "role": "assistant",
             "content": f"{output}"}
-        self.messages.append(new_message)
+        self.messages_llama.append(new_message)
 
     def simple_prompt(self, text):
 
         new_message = {
             "role": "user",
-            "content": [
-                {f"type": "text", "text": f"{text}"}]}
+            "content": text
+        }
 
         self.add_message(new_message)
 
-        # self.print_messages_no_image()
+        self.print_messages_no_image()
 
         response = self.llama.chat.completions.create(
-            model=self.model_name,
+            model=self.language_model_name,
             stream=True,
-            messages=self.messages
+            messages=self.messages_llama
         )
 
         output = ""
@@ -239,7 +260,7 @@ class ImageLLMLlamaCPP(ImageLLM):
         new_message = {
             "role": "assistant",
             "content": f"{output}"}
-        self.messages.append(new_message)
+        self.messages_llama.append(new_message)
 
     def capture_image_and_memorize(self):
         # self.reset_chat()
