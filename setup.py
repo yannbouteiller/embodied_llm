@@ -31,7 +31,7 @@ setup(
         'opencv-python',
         'transformers',
         'llama-cpp-python',
-        'piper-tts',
+        'yapper-tts',
         # 'RealtimeTTS',
         # 'RealtimeSTT'
     ],

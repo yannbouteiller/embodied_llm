@@ -1,4 +1,4 @@
-from RealtimeSTT import AudioToTextRecorder
+# from RealtimeSTT import AudioToTextRecorder
 
 from argparse import ArgumentParser
 from threading import Lock, Thread
@@ -7,7 +7,8 @@ import re
 import time
 
 import cv2
-from RealtimeSTT import AudioToTextRecorder
+from embodied_llm.asr.real_time_stt import AudioToTextRecorder
+from yapper import Yapper
 # import RealtimeSTT
 import zenoh
 import numpy as np
@@ -57,7 +58,7 @@ class EmbodiedLLM:
             #print("\a")
             #self.stop_listening()
             yes_str = "Yes?" if self.language == "en" else "Oui?"
-            self.tts.feed(yes_str).play()
+            self.process_text_generator(yes_str)
 
         def timeout():
             print("No speech detected")
@@ -85,11 +86,7 @@ class EmbodiedLLM:
         self._listening = False
         self.t_listen = None
 
-        from RealtimeTTS import TextToAudioStream
-        from embodied_llm.tts.piper import PiperEngine
-        voice = 'en_GB-alba-medium' if self.language == "en" else 'fr_FR-siwis-medium'  # 'fr_FR-upmc-medium'
-        self.tts_engine = PiperEngine(models_folder=models_folder, voice=voice)
-        self.tts = TextToAudioStream(self.tts_engine, log_characters=False)
+        self.yapper = Yapper()
 
         self.remote_camera = remote_camera
         self._image = None
@@ -102,7 +99,26 @@ class EmbodiedLLM:
         time.sleep(4.0)
 
         ready_str = "I'm ready." if self.language == "en" else "Bonjour."
-        self.tts.feed(ready_str).play(fast_sentence_fragment=True, buffer_threshold_seconds=999, minimum_sentence_length=18)
+        self.process_text_generator(ready_str)
+
+    def process_text_generator(self, text_generator):
+
+        def process_string(s):
+            # s = re.sub(r"[^a-zA-Z .,;:!?()'-]", "", s)
+            return s
+
+        if isinstance(text_generator, str):
+            stream = text_generator
+            self.yapper.yap(process_string(stream))
+        else:
+            stream = ""
+            for gen in text_generator:
+                stream += gen
+                if stream[-1] in [".", "?", "!"]:
+                    self.yapper.yap(process_string(stream))
+                    stream = ""
+            if len(stream):
+                self.yapper.yap(process_string(stream))
 
     def receive_zenoh_image(self, msg):
         b_string = msg.payload
@@ -193,6 +209,8 @@ class EmbodiedLLM:
 
             break
 
+        # name_detected = True  # DEBUG
+
         return trigger, name_detected
 
     def listen(self):
@@ -247,6 +265,7 @@ class EmbodiedLLM:
         mode = "chat"
         while max_iterations < 0 or iteration <= max_iterations:
             if mode == "chat":
+                print(f"Listening...")
                 text = self.recorder.text()
                 print(f"User: {text}")
                 trigger, name_detected = self.triggers(text)
@@ -262,7 +281,7 @@ class EmbodiedLLM:
                     if trigger == 1:
                         # User said "Bye"
                         bye_str = "Goodbye." if self.language == "en" else "Au revoir."
-                        self.tts.feed(bye_str).play()
+                        self.process_text_generator(bye_str)
                         self.publish_zenoh_msg(TRIGGER_MSGS['Turnoff_cmd'])
                         break
                     elif trigger == 2:
@@ -321,8 +340,7 @@ class EmbodiedLLM:
                     else:
                         res = self.llm.simple_prompt(text)
 
-                    # print(f"Laika: {r}")
-                    self.tts.feed(res).play(fast_sentence_fragment=True, buffer_threshold_seconds=999, minimum_sentence_length=18)
+                    self.process_text_generator(res)
                     
             elif mode == "search":
                 self.llm.reset_chat()
@@ -349,7 +367,7 @@ class EmbodiedLLM:
                         res = f"I found {self.searched_str}" if self.language == "en" else f"J'ai trouvé {self.searched_str}"
                     else:
                         res = res[idx:]
-                    self.tts.feed(res).play()
+                    self.process_text_generator(res)
                     self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
                     mode = "chat"
                     self.publish_zenoh_msg(TRIGGER_MSGS['Home_cmd'])
@@ -362,7 +380,7 @@ class EmbodiedLLM:
                         self._text_buffer = []
                     if stop:
                         res = f"Fine, I stop looking for {self.searched_str}." if self.language == "en" else f"D'accord, j'arrête de chercher {self.searched_str}."
-                        self.tts.feed(res).play()
+                        self.process_text_generator(res)
                         self.stop_listening()  # FIXME: at this point the model needs to hear something, e.g., itself
                         mode = "chat"
                         self.publish_zenoh_msg(TRIGGER_MSGS['Home_cmd'])
@@ -372,7 +390,6 @@ class EmbodiedLLM:
     def stop(self):
         self.recorder.stop()
         self.recorder.shutdown()
-        self.tts.stop()
         self.zenoh_sub.undeclare()
         self.zenoh_session.close()
 
