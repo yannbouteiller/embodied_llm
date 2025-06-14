@@ -63,8 +63,8 @@ INIT_WAKE_WORD_TIMEOUT = 5.0
 ALLOWED_LATENCY_LIMIT = 10
 
 TIME_SLEEP = 0.02
-SAMPLE_RATE = 16000  # 16000
-BUFFER_SIZE = 512
+SAMPLE_RATE = 16000 # 16000 # 48000  # 16000
+BUFFER_SIZE = 512  #1024 # 512
 INT16_MAX_ABS_VALUE = 32768.0
 
 
@@ -127,6 +127,9 @@ class AudioToTextRecorder:
                  on_wakeword_timeout=None,
                  on_wakeword_detection_start=None,
                  on_wakeword_detection_end=None,
+
+                 sample_rate: int=SAMPLE_RATE,
+                 buffer_size: int=BUFFER_SIZE
                  ):
         """
         Initializes an audio recorder and  transcription
@@ -294,8 +297,8 @@ class AudioToTextRecorder:
 
         self.level = level
         self.audio_queue = mp.Queue()
-        self.buffer_size = BUFFER_SIZE
-        self.sample_rate = SAMPLE_RATE
+        self.buffer_size = buffer_size
+        self.sample_rate = sample_rate
         self.recording_start_time = 0
         self.recording_stop_time = 0
         self.wake_word_detect_time = 0

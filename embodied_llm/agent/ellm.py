@@ -8,6 +8,7 @@ import time
 
 import cv2
 from embodied_llm.asr.real_time_stt import AudioToTextRecorder
+# from RealtimeSTT import AudioToTextRecorder
 from yapper import Yapper
 # import RealtimeSTT
 import zenoh
@@ -43,7 +44,8 @@ class EmbodiedLLM:
                  zenoh_id=1,
                  remote_camera=False,
                  send_commands=False,
-                 language="en"):
+                 language="en",
+                 input_sample_rate=16000):
         # global ar
 
         self.language = language
@@ -65,9 +67,9 @@ class EmbodiedLLM:
 
         if self.language == "en":
             print(f"DEBUG: using ENGLISH pipeline")
-            self.recorder = AudioToTextRecorder(model="tiny.en", language="en", wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback, wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False)
+            self.recorder = AudioToTextRecorder(model="tiny.en", language="en", wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback, wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False, sample_rate=input_sample_rate)
         else:
-            self.recorder = AudioToTextRecorder(model="tiny", language="fr", wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback, wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False)
+            self.recorder = AudioToTextRecorder(model="tiny", language="fr", wake_words="jarvis", silero_use_onnx=True, enable_realtime_transcription=True, on_wakeword_timeout=timeout, on_wakeword_detected=activation_callback, wake_words_sensitivity=0.7,input_device_index=input_device, spinner=False, sample_rate=input_sample_rate)
 
         if pipeline == "huggingface":
             print(f"DEBUG: using hugging face pipeline")
@@ -405,10 +407,18 @@ def main(args):
     max_iterations = args.max_iterations
     pipeline = args.pipeline
     models_folder = args.models_folder
+    sample_rate = args.microphone_sr
     if models_folder is None:
         models_folder = Path.home() / "ellm"
 
-    ellm = EmbodiedLLM(input_device=microphone, models_folder=models_folder, pipeline=pipeline, camera_device=camera, remote_camera=remote, send_commands=send_commands, language=language)
+    ellm = EmbodiedLLM(input_device=microphone,
+                       models_folder=models_folder,
+                       pipeline=pipeline,
+                       camera_device=camera,
+                       remote_camera=remote,
+                       send_commands=send_commands,
+                       language=language,
+                       input_sample_rate=sample_rate)
     ellm.loop(max_iterations=max_iterations)
     ellm.stop()
 
@@ -416,6 +426,7 @@ def main(args):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--microphone', type=int, default=-1, help='microphone index')
+    parser.add_argument('--microphone-sr', type=int, default=16000, help='microphone sample rate')
     parser.add_argument('--camera', type=int, default=-1, help='camera index')
     parser.add_argument('--max-iterations', type=int, default=-1, help='microphone index')
     parser.add_argument('--models-folder', type=str, default=None, help='path of the folder where models should be stored')
